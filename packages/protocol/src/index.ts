@@ -1,13 +1,11 @@
 /**
  * @copresence/protocol
  *
- * The wire contract shared by the client and the server. Phase 0 exists only
- * to prove the package boundary — that both ends of the monorepo import from
- * here, and fail to compile together the moment this file changes.
- *
- * The real contract — message unions, zod schemas, the codec, and the
- * lossy/lossless/control/audit classification — lands in Phase 1.
+ * The wire contract shared by the client and the server — one definition,
+ * both ends fail to compile when it changes. See docs/adr/0002.
  */
 
-/** Bumped whenever a breaking change lands in the wire format. */
-export const PROTOCOL_VERSION = 1 as const;
+export * from './constants.js';
+export * from './messages.js';
+export * from './codec.js';
+export * from './schemas.js';
