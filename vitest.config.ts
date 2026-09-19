@@ -1,0 +1,27 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    include: ['packages/*/src/**/*.test.ts', 'apps/server/src/**/*.test.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**'],
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      include: ['packages/*/src/**/*.ts', 'apps/server/src/**/*.ts'],
+      exclude: [
+        '**/*.test.ts',
+        '**/dist/**',
+        // Composition roots — thin by design, exercised by e2e/integration
+        // tests rather than unit tests. See CONTRIBUTING.md.
+        '**/src/index.ts',
+      ],
+      thresholds: {
+        lines: 90,
+        statements: 90,
+        functions: 90,
+        branches: 90,
+      },
+    },
+  },
+});

@@ -1,0 +1,8 @@
+[
+  {
+    "name": "@copresence/client — injected browser SDK",
+    "path": "packages/client/dist/copresence.js",
+    "limit": "10 KB",
+    "gzip": true
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "name": "@copresence/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency injectable browser SDK — cursor and scroll presence, bundled to a single IIFE under a 10KB gzipped budget.",
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

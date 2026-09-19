@@ -62,15 +62,15 @@ npm run test:chaos    # the E2E suite again, with the network deliberately broke
 
 ## The problem this is actually about
 
-A cursor demo looks trivial: read `mousemove`, send `{x, y}`, draw a dot. It stops being trivial the moment you write down what the transport actually guarantees, which is *very little*.
+A cursor demo looks trivial: read `mousemove`, send `{x, y}`, draw a dot. It stops being trivial the moment you write down what the transport actually guarantees, which is _very little_.
 
 Five things go wrong, and four of them are invisible on localhost:
 
 1. **Volume.** `mousemove` fires up to ~240 Hz on a high-polling mouse. Forwarding each event to each peer is a self-inflicted denial of service that only shows up with more than two participants.
 2. **Duplication.** Any retry path — application-level or infrastructure — can deliver the same frame twice.
-3. **Reordering.** Frame *N+1* overtakes frame *N*. Applied naively, the cursor jumps backwards and stays wrong until the next update happens to arrive in order.
+3. **Reordering.** Frame _N+1_ overtakes frame _N_. Applied naively, the cursor jumps backwards and stays wrong until the next update happens to arrive in order.
 4. **Loss and silence.** A dropped frame and a departed participant are indistinguishable from the receiving end. Both look like nothing arriving.
-5. **Disagreement.** Two clients that each dropped a *different* frame now hold different state, and nothing in the system notices.
+5. **Disagreement.** Two clients that each dropped a _different_ frame now hold different state, and nothing in the system notices.
 
 This is the same shape as webhook reconciliation, which is where the design came from: callbacks that arrive twice, arrive late, arrive out of order, or never arrive — and a reconciliation pass that catches the last case instead of assuming it away. Real-time presence is that problem wearing different clothes. The response here is the same one: **make every write idempotent, make ordering authoritative and server-side, and have an independent path that repairs state when the happy path silently failed.**
 
@@ -112,26 +112,26 @@ Twenty updates a second rendered raw looks like a stuttering cursor, so the clie
 
 Each row is a real mechanism in the source, not an intention. Reproduction steps for every one are in [`docs/FAILURE-MODES.md`](docs/FAILURE-MODES.md), and the chaos panel lets you trigger them yourself.
 
-| # | Failure | How it presents | Mechanism |
-|---|---|---|---|
-| 1 | **Duplicate delivery** | Same frame applied twice | `SequenceGuard` rejects any `seq ≤ lastSeen`. Re-applying is a no-op by construction, proven by a property test. |
-| 2 | **Out-of-order arrival** | Cursor jumps backwards | Same guard. Stale frames are dropped, not applied. Lossy data has no reason to be reordered into place — only the newest value matters. |
-| 3 | **Clock skew** | Client timestamps disagree, ordering is wrong | Ordering uses **server-assigned sequence numbers only**. Client `ts` is carried for latency measurement and never for ordering. Clocks lie; sequence numbers do not. |
-| 4 | **Message flood** | 240 Hz input saturates the link | rAF sampling + 2 px dead-band client-side; 20 Hz newest-value coalescing server-side. Coalescing ratio is on the metrics panel. |
-| 5 | **Slow consumer** | One bad connection grows memory without bound | `bufferedAmount` backpressure. Over threshold, **lossy** frames are dropped; **lossless** frames never are. Degrades to a stuttering cursor, never to an OOM. |
-| 6 | **Disconnect** | Peer vanishes; ghost cursor remains | Heartbeat ping every 15 s, terminate after 2 missed pongs, TTL reaper sweeps the roster. `ws` will not detect a half-open TCP connection for you. |
-| 7 | **Reconnect** | Client returns holding stale state | Server sends a full `snapshot` on rejoin. State is repaired by replacing it, not by replaying a backlog — the reconciliation pass, not the happy path. |
-| 8 | **Reconnect storm** | Server restart brings every client back at once | Exponential backoff with **full jitter**, capped at 10 s. Without jitter the recovery is a second outage. |
-| 9 | **Ambiguous silence** | Slow network and departed user look identical | Staleness is expressed, not guessed: fade at 2 s, remove at 10 s. The UI communicates uncertainty instead of lying in either direction. |
-| 10 | **Mismatched viewports** | Cursor lands in the wrong place at a different window size | Coordinates travel in **document-normalised space**, resolved at render against the local viewport and `devicePixelRatio`. The most commonly missed bug in cursor demos. |
-| 11 | **Hostile host-page CSS** | Injected UI breaks or leaks styles | All injected UI lives in a **closed Shadow DOM**. There is a fixture page with `* { position: relative !important }` that must keep passing. |
-| 12 | **Malformed / adversarial input** | Bad frame crashes the process | zod validation at the boundary, size caps, and a 1000-frame fuzz test. Invalid input produces an `error` frame; the connection survives. |
-| 13 | **Scroll hijack** | Being dragged around the page with no escape | Follow mode is opt-in and **breaks on local scroll intent** within one frame. |
-| 14 | **Silent divergence** | Two clients quietly hold different state | Per-participant **state hashes** on the inspector. When they match, the clients have converged — and you can watch them re-converge after a partition heals. |
-| 15 | **Tab closed / navigated away** | The session-end audit event is never delivered | `visibilitychange → hidden` as the flush signal — **not `beforeunload` or `unload`**, which do not fire on freeze, discard or OS kill, and where `unload` also disqualifies bfcache. Delivery via `sendBeacon` / `fetch(keepalive)`, which outlive the document where `fetch` and XHR are cancelled. |
-| 16 | **Browser or OS kills the tab** | Nothing fires at all; no event can help | Two independent covers: an IndexedDB outbox written **before** send and replayed on next load, and a server-side reconciliation sweep that writes an inferred `session.end` from last known state. The server never waits to be told. |
-| 17 | **bfcache restore** | The same beacon fires twice | The canonical duplicate source, so it is demoed rather than hidden. Deduplication on a client-generated `eventId`; the log keeps one event and records that the client reported it twice. |
-| 18 | **Audit gap** | Server holds events 1–7 and 9 | Gaps are detected, not inferred from silence: 8 was *lost*, the session was not quiet. Replay is requested on next connect. A gap on a *lossy* channel is expected and ignored — the message class decides what a gap means. |
+| #   | Failure                           | How it presents                                            | Mechanism                                                                                                                                                                                                                                                                                            |
+| --- | --------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Duplicate delivery**            | Same frame applied twice                                   | `SequenceGuard` rejects any `seq ≤ lastSeen`. Re-applying is a no-op by construction, proven by a property test.                                                                                                                                                                                     |
+| 2   | **Out-of-order arrival**          | Cursor jumps backwards                                     | Same guard. Stale frames are dropped, not applied. Lossy data has no reason to be reordered into place — only the newest value matters.                                                                                                                                                              |
+| 3   | **Clock skew**                    | Client timestamps disagree, ordering is wrong              | Ordering uses **server-assigned sequence numbers only**. Client `ts` is carried for latency measurement and never for ordering. Clocks lie; sequence numbers do not.                                                                                                                                 |
+| 4   | **Message flood**                 | 240 Hz input saturates the link                            | rAF sampling + 2 px dead-band client-side; 20 Hz newest-value coalescing server-side. Coalescing ratio is on the metrics panel.                                                                                                                                                                      |
+| 5   | **Slow consumer**                 | One bad connection grows memory without bound              | `bufferedAmount` backpressure. Over threshold, **lossy** frames are dropped; **lossless** frames never are. Degrades to a stuttering cursor, never to an OOM.                                                                                                                                        |
+| 6   | **Disconnect**                    | Peer vanishes; ghost cursor remains                        | Heartbeat ping every 15 s, terminate after 2 missed pongs, TTL reaper sweeps the roster. `ws` will not detect a half-open TCP connection for you.                                                                                                                                                    |
+| 7   | **Reconnect**                     | Client returns holding stale state                         | Server sends a full `snapshot` on rejoin. State is repaired by replacing it, not by replaying a backlog — the reconciliation pass, not the happy path.                                                                                                                                               |
+| 8   | **Reconnect storm**               | Server restart brings every client back at once            | Exponential backoff with **full jitter**, capped at 10 s. Without jitter the recovery is a second outage.                                                                                                                                                                                            |
+| 9   | **Ambiguous silence**             | Slow network and departed user look identical              | Staleness is expressed, not guessed: fade at 2 s, remove at 10 s. The UI communicates uncertainty instead of lying in either direction.                                                                                                                                                              |
+| 10  | **Mismatched viewports**          | Cursor lands in the wrong place at a different window size | Coordinates travel in **document-normalised space**, resolved at render against the local viewport and `devicePixelRatio`. The most commonly missed bug in cursor demos.                                                                                                                             |
+| 11  | **Hostile host-page CSS**         | Injected UI breaks or leaks styles                         | All injected UI lives in a **closed Shadow DOM**. There is a fixture page with `* { position: relative !important }` that must keep passing.                                                                                                                                                         |
+| 12  | **Malformed / adversarial input** | Bad frame crashes the process                              | zod validation at the boundary, size caps, and a 1000-frame fuzz test. Invalid input produces an `error` frame; the connection survives.                                                                                                                                                             |
+| 13  | **Scroll hijack**                 | Being dragged around the page with no escape               | Follow mode is opt-in and **breaks on local scroll intent** within one frame.                                                                                                                                                                                                                        |
+| 14  | **Silent divergence**             | Two clients quietly hold different state                   | Per-participant **state hashes** on the inspector. When they match, the clients have converged — and you can watch them re-converge after a partition heals.                                                                                                                                         |
+| 15  | **Tab closed / navigated away**   | The session-end audit event is never delivered             | `visibilitychange → hidden` as the flush signal — **not `beforeunload` or `unload`**, which do not fire on freeze, discard or OS kill, and where `unload` also disqualifies bfcache. Delivery via `sendBeacon` / `fetch(keepalive)`, which outlive the document where `fetch` and XHR are cancelled. |
+| 16  | **Browser or OS kills the tab**   | Nothing fires at all; no event can help                    | Two independent covers: an IndexedDB outbox written **before** send and replayed on next load, and a server-side reconciliation sweep that writes an inferred `session.end` from last known state. The server never waits to be told.                                                                |
+| 17  | **bfcache restore**               | The same beacon fires twice                                | The canonical duplicate source, so it is demoed rather than hidden. Deduplication on a client-generated `eventId`; the log keeps one event and records that the client reported it twice.                                                                                                            |
+| 18  | **Audit gap**                     | Server holds events 1–7 and 9                              | Gaps are detected, not inferred from silence: 8 was _lost_, the session was not quiet. Replay is requested on next connect. A gap on a _lossy_ channel is expected and ignored — the message class decides what a gap means.                                                                         |
 
 ---
 
@@ -139,13 +139,13 @@ Each row is a real mechanism in the source, not an intention. Reproduction steps
 
 The part worth actually opening. `/chaos` exposes five knobs on the live server:
 
-| Knob | Range | Simulates |
-|---|---|---|
-| `dropRate` | 0–50% | Lossy network, dropped frames |
-| `duplicateRate` | 0–20% | At-least-once delivery, retried sends |
-| `latencyMs ± jitterMs` | 0–2000 ± 0–500 | Congestion, mobile networks, distance |
-| `reorderWindow` | 0–10 msgs | Multi-path routing, queue reordering |
-| `partitionMs` | 0–30000 | Total outage, closed laptop lid, tunnel |
+| Knob                   | Range          | Simulates                               |
+| ---------------------- | -------------- | --------------------------------------- |
+| `dropRate`             | 0–50%          | Lossy network, dropped frames           |
+| `duplicateRate`        | 0–20%          | At-least-once delivery, retried sends   |
+| `latencyMs ± jitterMs` | 0–2000 ± 0–500 | Congestion, mobile networks, distance   |
+| `reorderWindow`        | 0–10 msgs      | Multi-path routing, queue reordering    |
+| `partitionMs`          | 0–30000        | Total outage, closed laptop lid, tunnel |
 
 The Vue 3 session inspector shows msgs·s⁻¹ in and out, the **coalescing ratio**, drops by message class, duplicates and out-of-order frames rejected, resyncs triggered, end-to-end latency percentiles, and the per-participant state hash.
 
@@ -161,17 +161,17 @@ When a session ends, that fact has to be recorded. The starting point is that **
 
 Three independent paths report a session ending, and they are reconciled into one record:
 
-| Path | Signal | Covers | Fails when |
-|---|---|---|---|
-| **Client** | `visibilitychange → hidden`, flushed via `sendBeacon` / `fetch(keepalive)` | Ordinary tab close, navigation, backgrounding | The process dies before anything runs |
-| **Socket** | Clean close, or heartbeat timeout on the live connection | Crash, network loss, OS kill | The server itself restarts |
-| **Inferred** | Reconciliation sweep over sessions holding a `start` with no `end` past TTL | Everything the first two missed | — |
+| Path         | Signal                                                                      | Covers                                        | Fails when                            |
+| ------------ | --------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------- |
+| **Client**   | `visibilitychange → hidden`, flushed via `sendBeacon` / `fetch(keepalive)`  | Ordinary tab close, navigation, backgrounding | The process dies before anything runs |
+| **Socket**   | Clean close, or heartbeat timeout on the live connection                    | Crash, network loss, OS kill                  | The server itself restarts            |
+| **Inferred** | Reconciliation sweep over sessions holding a `start` with no `end` past TTL | Everything the first two missed               | —                                     |
 
 Each event carries a client-generated `eventId` and a per-session sequence number, so the log deduplicates on arrival and **keeps one event while recording which paths reported it**. Gaps are detected rather than inferred from silence: holding 1–7 and then 9 means 8 was lost, not that the session went quiet.
 
-Client-side, events stream over the live socket continuously and are acknowledged as they go, so the final flush carries only a short unacknowledged tail — the payload stays inside the shared ~64 KB keepalive budget *by construction* rather than by truncating the record, which would discard exactly the evidence the log exists to hold. Anything unacknowledged is written to an IndexedDB outbox **before** the send is attempted and replayed on the next page load, which is the only thing that covers a crash or an OS kill.
+Client-side, events stream over the live socket continuously and are acknowledged as they go, so the final flush carries only a short unacknowledged tail — the payload stays inside the shared ~64 KB keepalive budget _by construction_ rather than by truncating the record, which would discard exactly the evidence the log exists to hold. Anything unacknowledged is written to an IndexedDB outbox **before** the send is attempted and replayed on the next page load, which is the only thing that covers a crash or an OS kill.
 
-The architectural point: this session already has a live WebSocket, so **the server noticing the socket drop is a more reliable end-of-session signal than anything the page can emit.** The client machinery exists to enrich the record and to cover the window before the server notices — not to be the source of truth. The invariant that matters, asserted under every chaos configuration: *no session holds a `start` with no `end`.*
+The architectural point: this session already has a live WebSocket, so **the server noticing the socket drop is a more reliable end-of-session signal than anything the page can emit.** The client machinery exists to enrich the record and to cover the window before the server notices — not to be the source of truth. The invariant that matters, asserted under every chaos configuration: _no session holds a `start` with no `end`._
 
 ---
 
@@ -180,16 +180,16 @@ The architectural point: this session already has a live WebSocket, so **the ser
 The full set lives in [`docs/adr/`](docs/adr/). The five worth arguing about:
 
 **Server-side tick coalescing over per-event forwarding.**
-Forwarding is simpler and has lower latency for a single event. It also makes outbound bandwidth a function of input rate, which is unbounded and controlled by the user's hardware. Coalescing caps the cost at `tickRate × participants` and adds at most 50 ms of latency — below the threshold where cursor movement reads as laggy, especially once interpolation is applied. *Trade-off:* a deliberate 50 ms latency floor. *At scale:* the tick would move per-session and adapt to observed RTT.
+Forwarding is simpler and has lower latency for a single event. It also makes outbound bandwidth a function of input rate, which is unbounded and controlled by the user's hardware. Coalescing caps the cost at `tickRate × participants` and adds at most 50 ms of latency — below the threshold where cursor movement reads as laggy, especially once interpolation is applied. _Trade-off:_ a deliberate 50 ms latency floor. _At scale:_ the tick would move per-session and adapt to observed RTT.
 
 **Server-assigned sequence numbers, not client timestamps.**
-Client clocks are wrong — skewed, adjusted mid-session, and trivially forgeable. Any ordering that trusts them is decorative. The server stamps arrival order; client `ts` survives only to measure latency. *Trade-off:* the server must be the ordering authority, which forecloses peer-to-peer. That was already foreclosed by the proxy architecture.
+Client clocks are wrong — skewed, adjusted mid-session, and trivially forgeable. Any ordering that trusts them is decorative. The server stamps arrival order; client `ts` survives only to measure latency. _Trade-off:_ the server must be the ordering authority, which forecloses peer-to-peer. That was already foreclosed by the proxy architecture.
 
 **Document-normalised coordinates, not viewport pixels.**
-Two browsers at different window sizes must place a cursor on the same *paragraph*, not the same pixel offset. Normalising against document width and absolute document height, with `devicePixelRatio` resolved at render, makes correctness independent of window geometry. *Trade-off:* breaks under responsive reflow where the two viewports render genuinely different layouts, which is documented rather than papered over.
+Two browsers at different window sizes must place a cursor on the same _paragraph_, not the same pixel offset. Normalising against document width and absolute document height, with `devicePixelRatio` resolved at render, makes correctness independent of window geometry. _Trade-off:_ breaks under responsive reflow where the two viewports render genuinely different layouts, which is documented rather than papered over.
 
 **In-memory state, no database.**
-Presence data has a natural lifetime of one connection and is meaningless three seconds after it is written. Persisting it would add a hop to the hot path and a second source of truth to keep converged, in exchange for a durability guarantee nobody needs. The registry sits behind a `SessionStore` port so the choice is visible and a Redis adapter is a file, not a refactor. Optional session *recording* — a genuinely different requirement — is an append-only event log, and because the reducer is pure, replay is `events.reduce(applyEvent, initial)` with no new domain logic.
+Presence data has a natural lifetime of one connection and is meaningless three seconds after it is written. Persisting it would add a hop to the hot path and a second source of truth to keep converged, in exchange for a durability guarantee nobody needs. The registry sits behind a `SessionStore` port so the choice is visible and a Redis adapter is a file, not a refactor. Optional session _recording_ — a genuinely different requirement — is an append-only event log, and because the reducer is pure, replay is `events.reduce(applyEvent, initial)` with no new domain logic.
 
 **Zero-dependency client, 10 KB gzipped, enforced in CI.**
 The client is designed to be injected into a page whose source it does not control. It cannot assume a framework, a module loader, or that the host page will not fight it. So: no dependencies, closed Shadow DOM, passive listeners, one namespaced global. The budget is a build failure, not a warning, because a size budget nobody enforces is a comment.
@@ -233,11 +233,11 @@ Realtime messages are routed through a dispatch table, not a `switch` sprawled t
 
 Every frame carries `{ v, t, sid, pid, seq, ts }`. Messages are classified, and the classification drives every drop decision in the system:
 
-| Class | Messages | Policy |
-|---|---|---|
-| **Lossy** | `cursor`, `scroll` | May be dropped, coalesced, superseded. Only the newest value matters. |
-| **Lossless** | `hello`, `join`, `leave`, `welcome`, `snapshot` | Must arrive. Never dropped under backpressure. |
-| **Control** | `ping`, `pong`, `ack`, `error` | Out-of-band. Never queued behind presence data. |
+| Class        | Messages                                        | Policy                                                                |
+| ------------ | ----------------------------------------------- | --------------------------------------------------------------------- |
+| **Lossy**    | `cursor`, `scroll`                              | May be dropped, coalesced, superseded. Only the newest value matters. |
+| **Lossless** | `hello`, `join`, `leave`, `welcome`, `snapshot` | Must arrive. Never dropped under backpressure.                        |
+| **Control**  | `ping`, `pong`, `ack`, `error`                  | Out-of-band. Never queued behind presence data.                       |
 
 Getting this classification right early is what makes backpressure a two-line policy instead of a pile of special cases: under pressure you shed lossy frames and nothing else, and the roster stays correct even when the cursors stutter.
 
@@ -245,13 +245,13 @@ Getting this classification right early is what makes backpressure a two-line po
 
 ## Testing
 
-| Layer | Tool | What it proves |
-|---|---|---|
-| Models | Vitest + fast-check | **Property tests**: applying any event N times ≡ once; any permutation of lossy events converges to the same state; `SequenceGuard` never accepts a regression; no input throws. |
-| Server | Vitest + real `ws` client | Join, mirroring, disconnect, resync, malformed frames, 1000-frame fuzz without a crash. |
-| Client | Vitest + jsdom | Backoff timing, drop policy, dead-band, normalisation, hostile-CSS fixture. |
-| End-to-end | Playwright, 2 browser contexts | Cursor mirroring, scroll follow, follow-break, reconnect recovery. |
-| **Chaos** | Playwright + ChaosMiddleware | **Convergence under 20% loss, 5% duplication, 300 ms jitter, reorder window 5.** |
+| Layer      | Tool                           | What it proves                                                                                                                                                                   |
+| ---------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Models     | Vitest + fast-check            | **Property tests**: applying any event N times ≡ once; any permutation of lossy events converges to the same state; `SequenceGuard` never accepts a regression; no input throws. |
+| Server     | Vitest + real `ws` client      | Join, mirroring, disconnect, resync, malformed frames, 1000-frame fuzz without a crash.                                                                                          |
+| Client     | Vitest + jsdom                 | Backoff timing, drop policy, dead-band, normalisation, hostile-CSS fixture.                                                                                                      |
+| End-to-end | Playwright, 2 browser contexts | Cursor mirroring, scroll follow, follow-break, reconnect recovery.                                                                                                               |
+| **Chaos**  | Playwright + ChaosMiddleware   | **Convergence under 20% loss, 5% duplication, 300 ms jitter, reorder window 5.**                                                                                                 |
 
 The property tests are the ones that matter. They prove convergence over the whole input space rather than over the handful of orderings a human thought to write down.
 
@@ -273,7 +273,7 @@ The property tests are the ones that matter. They prove convergence over the who
 
 - [ ] Session lifecycle & audit delivery
 - [ ] Proxy + injection into a page it does not control
-- [ ] *(optional)* Durable event log and replay
+- [ ] _(optional)_ Durable event log and replay
 
 ---
 

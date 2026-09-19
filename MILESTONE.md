@@ -133,6 +133,8 @@ Each phase has **deliverables**, **exit criteria**, and a **demo moment** — th
 
 ### Phase 0 — Foundations · *1 evening*
 
+**Status:** ✅ Complete — 19 September 2026
+
 Toolchain and guardrails first, so that every later phase is protected by the same gate.
 
 **Deliverables**
@@ -151,6 +153,14 @@ Toolchain and guardrails first, so that every later phase is protected by the sa
 - A deliberately introduced type error fails CI (verify the gate actually gates)
 
 **Demo moment** — a reviewer clones, runs `npm i && npm run verify`, and it passes on a cold machine.
+
+**Notes from the actual build:**
+- `npm run verify` is green: lint (ESLint + `prettier --check`), typecheck, test with coverage (13 tests, 100% on the three real units — `env.ts`, `logger.ts`, `protocol`/`client` boundaries), build, and the 10 KB bundle-size gate (currently 358 B — real headroom for Phase 3).
+- The type-error gate was proven directly, not just asserted: a deliberate error was injected into `env.ts`, `tsc` failed with exit code 2, then it was reverted and confirmed clean (exit 0).
+- CI badge can't go green yet — that needs a GitHub push, which per `notes.local.md` waits until Phase 4. `.github/workflows/ci.yml` runs the same five steps `verify` does and is ready for that push.
+- Two things came up only once real tooling ran, both fixed: `tsc`'s emitting build was including `*.test.ts` files in `dist/` (split into `tsconfig.json` for typecheck vs `tsconfig.build.json`, which excludes tests, for build), and pino's default destination isn't mockable via `process.stdout.write` spies (fixed by making `createLogger`'s destination stream injectable — better testability, not just a workaround).
+- `size-limit` resolved to a version whose peer `@size-limit/file` needed pinning, and the newest `size-limit` major required a Node patch version above what's installed here — pinned both to `12.1.0`, which is mutually compatible and supports Node `^22.0.0`.
+- Playwright's Chromium binary is installed locally (`npx playwright install chromium`) and the smoke spec passes headed-off; this isn't part of `verify` and won't be until Phase 4 adds the real suite.
 
 ---
 

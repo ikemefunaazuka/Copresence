@@ -1,0 +1,20 @@
+{
+  "name": "@copresence/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The wire contract shared by the Copresence client and server — one definition, both ends fail to compile when it changes.",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
