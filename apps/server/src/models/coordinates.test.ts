@@ -57,6 +57,17 @@ describe('toDocumentSpace', () => {
     );
   });
 
+  it('sanitises a non-finite scrollY deterministically, not just via property sampling', () => {
+    // Same reasoning as the toViewportSpace case above: random sampling in
+    // the "is total" property test does not reliably generate a non-finite
+    // scrollY specifically, so this branch needs a pinned case too.
+    expect(toDocumentSpace({ x: 0, y: 50 }, 1000, Number.POSITIVE_INFINITY)).toEqual({
+      x: 0,
+      y: 50,
+    });
+    expect(toDocumentSpace({ x: 0, y: 50 }, 1000, Number.NaN)).toEqual({ x: 0, y: 50 });
+  });
+
   it('falls back to a safe y when viewportPoint.y + scrollY itself overflows', () => {
     // Both individually finite (and both well within the "always non-
     // finite" cases already covered above); only their SUM overflows.
@@ -105,6 +116,21 @@ describe('toViewportSpace', () => {
         },
       ),
     );
+  });
+
+  it('sanitises a non-finite documentPoint.y or scrollY deterministically, not just via property sampling', () => {
+    // The "is total" property test above covers this too, but only when
+    // random sampling happens to generate a non-finite value in one of
+    // these exact parameter positions — which is not guaranteed every run
+    // (coverage of this exact branch was observed to vary run to run).
+    expect(toViewportSpace({ x: 0, y: Number.NaN }, 1000, 0)).toEqual({ x: 0, y: 0 });
+    // scrollY is sanitised to its own fallback (0) before the subtraction,
+    // so this is 100 - 0, not 0 — the point itself is still meaningful
+    // even though the (non-finite) scroll offset could not be applied.
+    expect(toViewportSpace({ x: 0, y: 100 }, 1000, Number.POSITIVE_INFINITY)).toEqual({
+      x: 0,
+      y: 100,
+    });
   });
 
   it('falls back to a safe y when the subtraction itself overflows — not just when an input is non-finite', () => {
