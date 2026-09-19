@@ -1,0 +1,163 @@
+# ---------------------------------------------------------------------------
+# Copresence — .gitignore
+#
+# This is a PUBLIC repository attached to a job application. Two rules govern
+# everything below:
+#   1. Nothing personal, credentialed, or generated ever lands in history.
+#   2. A reviewer cloning this repo should get source, tests and docs — and
+#      nothing else.
+# ---------------------------------------------------------------------------
+
+# --- Dependencies ----------------------------------------------------------
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/versions
+jspm_packages/
+bower_components/
+
+# --- Build output ----------------------------------------------------------
+dist/
+build/
+out/
+lib-cov/
+*.tsbuildinfo
+.tsbuildinfo
+.vite/
+.turbo/
+.rollup.cache/
+.esbuild/
+public/copresence.js
+public/copresence.js.map
+
+# --- Test, coverage, benchmarks -------------------------------------------
+coverage/
+*.lcov
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+.playwright/
+__snapshots__/**/*.snap.new
+bench-results/
+
+# --- Environment & secrets -------------------------------------------------
+# .env.example IS committed — it documents the contract. Real values never are.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets.json
+credentials.json
+.npmrc
+.netrc
+
+# --- Logs & runtime --------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pids/
+*.pid
+*.seed
+*.pid.lock
+.node_repl_history
+
+# --- Caches ----------------------------------------------------------------
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.prettiercache
+.temp/
+.tmp/
+tmp/
+
+# ---------------------------------------------------------------------------
+# tooling & local assistant state
+#
+# Ignored deliberately. These are machine-generated working files for local
+# agent sessions, not project artefacts, and the auto-generated CLAUDE.md /
+# AGENTS.md currently contain boilerplate ("Total Decisions: 0") that reads as
+# noise to a reviewer. If you later hand-write a real AGENTS.md describing how
+# to work on this repo, un-ignore it — at a company shipping WebMCP that is a
+# feature, not clutter.
+# ---------------------------------------------------------------------------
+.continuity/
+.context-mem/
+.neurotrace/
+.clinerules/
+.cursor/
+.cursorrules
+.aider*
+.claude/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+SESSION_HANDOFF.md
+.github/copilot-instructions.md
+.github/copilot-toolbox-mcp-skills-awareness.md
+.vscode/copilot-prompts.json
+
+# --- Editor / IDE ----------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.shared.json
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# --- OS --------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ---------------------------------------------------------------------------
+# Application documents
+#
+# CV, cover letters and company profiles must never be committed to a public
+# repo. The repo is the evidence; the paperwork goes in the email.
+# ---------------------------------------------------------------------------
+*.pdf
+*.docx
+*.doc
+*.odt
+cv/
+resume/
+application/
+letters/
+
+# --- Media working files (keep only the optimised assets in docs/assets) ---
+*.mov
+*.mp4
+*.avi
+!docs/assets/*.gif
+!docs/assets/*.png
+!docs/assets/*.svg
+
+# --- Local scratch ---------------------------------------------------------
+scratch/
+sandbox/
+notes.local.md
+TODO.local.md
