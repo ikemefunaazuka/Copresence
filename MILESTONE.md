@@ -6,7 +6,7 @@
 |---|---|
 | **Owner** | Precious Ikemefuna Azuka |
 | **Started** | 19 September 2026 |
-| **Target for first public link** | 26 September 2026 (Phases 0–5 + 8) |
+| **Target for v1** | 26 September 2026 (Phases 0–5 + 9) |
 | **Stack** | TypeScript (strict, ESM) · Node 22 · Express 5 · `ws` · Vue 3 (inspector only) · Vitest · Playwright |
 | **Database** | **None required.** See [Data & Persistence](#data--persistence) |
 | **Architecture** | MVC on the server, layered SDK on the client |
@@ -114,10 +114,12 @@ Presence state — cursor coordinates, scroll offset, participant roster — is 
 
 So the storage layer is `SessionRegistry`, a `Map<SessionId, Session>` behind an interface, with TTL-based reaping of dead participants. The **interface** is the point — `SessionStore` is defined as a port in Phase 2 so the in-memory implementation is visibly a choice rather than an omission, and so a Redis adapter is a file, not a refactor.
 
-**The one exception — Phase 7 (optional).** If you want a durable append-only event log with timeline scrubbing and session replay, that needs MongoDB. It is a clean bolt-on: the reducer is already pure, so replay is `events.reduce(applyEvent, initialState)` with no new domain logic. It also adds real scope and is not needed to make the repo land.
+**The audit log is a genuinely different case, and worth naming honestly.** Unlike presence state, an audit record exists precisely so that it *outlives* the session — durability is the feature, not an accident. Phase 6 therefore writes to an append-only JSONL file behind the same port pattern, which is enough to demonstrate every property that matters (idempotent writes, gap repair, three-path reconciliation) with no external dependency. If this were production rather than a demonstration, that store would be a real database. The file store is a scope decision, and the README says so rather than implying the design is finished.
 
-> **Action required from you: none, unless you choose Phase 7.**
-> If you do want Phase 7, create a MongoDB Atlas free-tier cluster and provide a connection string; it goes in `.env` as `MONGODB_URI` and nowhere else. My recommendation is to skip it for v1 and keep the repo sharp.
+**The one place a database is required — Phase 8 (optional).** Durable event log with timeline scrubbing and full session replay needs MongoDB. It is a clean bolt-on: the reducer is already pure, so replay is `events.reduce(applyEvent, initialState)` with no new domain logic. It also adds real scope and is not needed for v1.
+
+> **Setup required: none for v1.** Phases 0–7 run with no database at all.
+> Phase 8 alone needs a MongoDB Atlas free-tier cluster; the connection string goes in `.env` as `MONGODB_URI` and nowhere else.
 
 ---
 
@@ -162,6 +164,7 @@ The heart of the project. **Pure logic, zero I/O, no server yet.** Everything th
 - Versioned envelope: `{ v, t, sid, pid, seq, ts }` on every message
 - Inbound (client → server): `hello` · `cursor` · `scroll` · `ack` · `ping` · `bye`
 - Outbound (server → client): `welcome` · `join` · `leave` · `patch` · `snapshot` · `pong` · `error`
+- Lifecycle/audit events: `session.start` · `session.end` · `participant.join` · `participant.leave` · `visibility.change`, each carrying a client-generated `eventId` (UUID) **and** the per-session monotonic `seq`
 - zod schema per inbound type; **parse at the boundary, trust everywhere inside**
 - Explicit **message classification**, which is the decision the rest of the system hangs off:
 
@@ -170,9 +173,11 @@ The heart of the project. **Pure logic, zero I/O, no server yet.** Everything th
   | **Lossy** | `cursor`, `scroll` | May be dropped, coalesced, superseded. Only the newest value matters. |
   | **Lossless** | `hello`, `join`, `leave`, `welcome`, `snapshot` | Must arrive. Never dropped under backpressure. |
   | **Control** | `ping`, `pong`, `ack`, `error` | Out-of-band; never queued behind presence data. |
+  | **Audit** | `session.*`, `participant.*`, `visibility.change` | Must arrive *eventually*. Persisted client-side before send, replayed until acknowledged, deduped on `eventId`. Survives the page. |
 
 `apps/server/src/models/`
 - `SequenceGuard` — per-participant monotonic `seq`; `accept(seq)` returns `false` for any seq ≤ last seen. **This single primitive gives both idempotency and out-of-order rejection.**
+- `SequenceGuard.observedGaps()` — the guard also records *which* sequence numbers never arrived. Holding 1–7 then 9 means 8 was lost, rather than the session simply being quiet. **The message class decides what a gap means**, which is the second job the Phase 1 classification does: a gap on a *lossy* channel is expected and ignored (the frame was superseded anyway), a gap on a *lossless* or *audit* channel triggers repair. The same data structure, two behaviours, chosen by a field that already existed.
 - `PresenceState` — last-writer-wins per field, ordered by server-assigned sequence, **never by client `ts`** (clocks lie; see ADR 0004)
 - `Participant` — identity, colour assignment, liveness (`lastSeenAt`), viewport metadata
 - `Session` — roster, per-participant presence, dirty-field tracking for delta emission
@@ -186,6 +191,7 @@ The heart of the project. **Pure logic, zero I/O, no server yet.** Everything th
   - *Idempotency* — applying any event N times ≡ applying it once
   - *Order tolerance* — any permutation of a lossy event set converges to the same final state as the in-order sequence
   - *Monotonicity* — `SequenceGuard` never accepts a regression, under any shuffled input
+  - *Gap exactness* — for any delivered subset of a sequence, `observedGaps()` returns precisely the missing numbers: no false positives, no misses
   - *Totality* — no input, including malformed and adversarial, throws from a model function
 - Zero imports of `node:*` or `dom` lib anywhere under `models/` (enforced by an ESLint `no-restricted-imports` rule, not by discipline)
 
@@ -205,6 +211,8 @@ The heart of the project. **Pure logic, zero I/O, no server yet.** Everything th
 - Controllers: `SessionController` (create/join/inspect), `HealthController` (`/healthz` liveness, `/readyz` readiness), `ConnectionController` (handshake, `welcome` with full snapshot, disconnect), `PresenceController` (cursor/scroll ingest)
 - Views/presenters: `toWelcome`, `toPatch`, `toSnapshot`, `toSessionDTO`
 - Heartbeat: server pings every 15 s, terminates after 2 missed pongs — **`ws` does not detect half-open TCP connections for you**, and a dead client that is never reaped is a ghost cursor on everyone else's screen
+- `AuditLog` service + `AuditController`, append-only and idempotent on `eventId`. Two write paths feed it — the live socket, and `POST /audit/beacon` (Phase 6) for events that outlive the page — and both land in the same deduplicated log.
+- Server-inferred lifecycle events: when the heartbeat reaper kills a participant, the server writes `session.end` itself, tagged `source: 'inferred'` alongside `source: 'client'` and `source: 'socket'`. **The server never waits to be told a session ended**, because a client that vanished cannot tell it.
 
 **Exit criteria**
 - Integration tests using a real `ws` client (not a mock) covering: join, two-party mirroring, disconnect → `leave` broadcast, reconnect → `snapshot` resync, malformed JSON → `error` frame + connection survives, oversized frame → rejected without OOM
@@ -229,7 +237,7 @@ The heart of the project. **Pure logic, zero I/O, no server yet.** Everything th
 - Reconnect with **exponential backoff + full jitter**, capped at 10 s. Jitter is not decoration: without it, a server restart brings every client back simultaneously in a thundering herd, and the second outage is worse than the first.
 - Outbound queue with the class-based drop policy from Phase 1 — lossy frames are replaced in place, never queued behind each other
 - **Backpressure**: if `socket.bufferedAmount > BACKPRESSURE_BYTES`, drop lossy frames entirely. A slow consumer must degrade to a stuttering cursor, never to unbounded memory growth.
-- Heartbeat responder; `visibilitychange` → suspend capture, keep socket, resume with a fresh `hello`
+- Heartbeat responder; `visibilitychange` → suspend capture, keep socket, resume with a fresh `hello`. **`hidden` is treated as the end-of-session signal from here on** — never `beforeunload`, never `unload` (Phase 6 covers why, and a code comment states it at the listener so nobody "helpfully" adds one later)
 - Idempotent `connect()` / `disconnect()`; no double-socket on rapid toggling
 
 *Render* (`render/`)
@@ -267,8 +275,6 @@ The heart of the project. **Pure logic, zero I/O, no server yet.** Everything th
 - Trace + video artefacts uploaded on failure
 
 **Demo moment** — the GIF for the README. Record here: two windows side by side, cursors tracking, scroll locking, one window killed and rejoining. **This is the single asset that determines whether anyone reads further.**
-
-> Playwright and the Chrome DevTools Protocol are on your stated "learning rather than arriving expert" list. Using Playwright as the *proof mechanism* for this project closes that gap with evidence instead of a promise — and lets your follow-up email say so factually.
 
 ---
 
@@ -308,7 +314,60 @@ The heart of the project. **Pure logic, zero I/O, no server yet.** Everything th
 
 ---
 
-### Phase 6 — Proxy & injection · *2–3 evenings* — the Surfly-shaped phase
+### Phase 6 — Session lifecycle & audit delivery · *2 evenings* ⭐
+
+**The problem:** a session needs to record an audit event when the user closes the tab or navigates away. The honest starting point is that **you cannot guarantee the client tells you anything**, so this is designed for that rather than around it.
+
+Placed after the chaos lab deliberately — Phase 5's partition and drop machinery is what makes these paths testable rather than merely asserted.
+
+#### Client — listen to the right signal (`client/lifecycle/`)
+
+- **`visibilitychange` → `hidden` is the end-of-session signal**, with `pagehide` as secondary.
+- **Not `beforeunload`, not `unload`.** They are the intuitive choice and the wrong one: they do not fire when a tab is frozen, discarded or killed by the OS, which is most of what happens on mobile — and `unload` additionally disqualifies the page from the back/forward cache. A comment at the listener says so, so nobody adds one back later as a "fix".
+- `pagehide` with `event.persisted === true` means the page went to bfcache and may return, rather than being torn down. Different situation, different flush policy — and the distinction is free, so take it.
+- The page can *start* hidden (background tab, prerender). Read `visibilityState` at init; never assume a session begins visible.
+- `hidden → visible → hidden` can fire many times in one session, so the flush must be **idempotent and cheap**, not a once-per-lifetime special case.
+
+#### Client — send in a way that survives the page (`client/beacon/`)
+
+- `navigator.sendBeacon` as primary; `fetch(url, { keepalive: true })` where the audit endpoint needs an `Authorization` header, which `sendBeacon` cannot set. A normal `fetch` or XHR is cancelled when the document goes away, so neither is an option here.
+- **The ~64 KB budget is shared across all in-flight keepalive requests, not granted per request.** Two concurrent flushes can fail each other.
+- **`sendBeacon` returns `false`** when the payload will not fit the queue. Check the boolean and fall back to the outbox — the common bug is treating a beacon as fire-and-forget when it is fire-and-*maybe*.
+- Content-type: a `Blob` of type `application/json` is not CORS-safelisted, and a request issued on the unload path cannot rely on a preflight completing. Send `text/plain` and parse server-side, with the reason written at the call site.
+- **Emit continuously, not at the end.** Audit events stream over the live socket during the session and are acknowledged as they go, so the final flush carries only a short unacknowledged tail. The payload stays under budget *by construction* rather than by truncating the record — which would drop exactly the evidence the audit log exists to hold.
+
+#### Client — the outbox (`client/outbox/`)
+
+- IndexedDB. **Persist before sending; clear only on acknowledgement.** Replay anything unacknowledged on next page load.
+- This is the only mechanism that covers the case where *nothing fires at all* — a crash or an OS kill — which no browser event can help with.
+- TTL and a hard cap on outbox entries, so a permanently failing endpoint degrades instead of filling the user's storage quota.
+- bfcache restore is the canonical duplicate source: the beacon fired on hide, the page came back, it will fire again. The demo shows this happening rather than hiding it.
+
+#### Server
+
+- `POST /audit/beacon` — accepts the beacon content types, **idempotent on `eventId`**, returns an acknowledgement the outbox can clear against.
+- Gap detection over the audit sequence: holding 1–7 then 9 means 8 was lost, not that the session was quiet. The server requests replay of the missing events on next connect.
+- **An independent reconciliation sweep** — any session holding a `session.start` with no `session.end` from any source past the TTL gets an inferred close with last known state. This is the pass that catches what the happy path silently missed.
+- Three independent paths converge on one record: `client` (beacon), `socket` (clean close or heartbeat timeout on the live connection), `inferred` (reconciliation sweep). When more than one reports, the log keeps **one** event and records which paths saw it.
+
+> The architectural point, and the reason this fits here rather than in a separate project: the session already has a live WebSocket, so **the server noticing that socket drop is a more reliable end-of-session signal than anything the page can emit.** The client-side machinery above exists to enrich the record and to cover the window before the server notices — not to be trusted as the source of truth.
+
+#### Inspector
+
+Audit trail view: each event with its reporting source(s), duplicates rejected, gaps detected and repaired, and which of the three paths arrived first.
+
+**Exit criteria**
+- **Kill the browser process outright** (no lifecycle event fires at all) → the server still writes a complete `session.end` with last known state within the reaper TTL
+- Force a bfcache duplicate → **exactly one** event in the log, recording that the client reported it twice
+- Offline at flush time → the event survives in IndexedDB and lands on the next page load
+- Drop 100% of beacon requests → the socket and inferred paths still close the record
+- **Invariant test across every chaos configuration: the audit log contains no session with a `start` and no `end`**
+
+**Demo moment** — the inspector table showing, for one session end, which of the three independent paths reported it and which arrived first.
+
+---
+
+### Phase 7 — Proxy & injection · *2–3 evenings* — the Surfly-shaped phase
 
 The closest this toy gets to Webfuse's actual core: **co-browsing a page whose source you do not control.**
 
@@ -324,11 +383,9 @@ The closest this toy gets to Webfuse's actual core: **co-browsing a page whose s
 - A documented, honest list of what breaks: SPA client-side routing, service workers, cross-origin iframes, `srcdoc`, subresource integrity, WebSocket upgrades from the guest page
 - Non-allow-listed URL → 403, with a test
 
-> **Strategic note.** Phase 6 is the natural content for your follow-up message in week two. Shipping Phases 0–5 gives you the link; shipping Phase 6 a week later gives you a legitimate reason to write again that is an update rather than a chase.
-
 ---
 
-### Phase 7 — Durability & replay · *2 evenings* — **OPTIONAL, needs MongoDB**
+### Phase 8 — Durability & replay · *2 evenings* — **OPTIONAL, needs MongoDB**
 
 Skip unless you specifically want to show data modelling. The repo is stronger tight than broad.
 
@@ -342,7 +399,7 @@ Skip unless you specifically want to show data modelling. The repo is stronger t
 
 ---
 
-### Phase 8 — Documentation, polish & publish · *1–2 evenings*
+### Phase 9 — Documentation, polish & publish · *1–2 evenings*
 
 Do not treat this as cleanup. **For this purpose it is the highest-leverage phase in the plan** — the reader's decision is made in the first thirty seconds.
 
@@ -363,7 +420,7 @@ Do not treat this as cleanup. **For this purpose it is the highest-leverage phas
 
 ---
 
-## 5. Schedule to the first link
+## 5. Schedule
 
 | Day | Date | Phase | Evening output |
 |---|---|---|---|
@@ -373,10 +430,14 @@ Do not treat this as cleanup. **For this purpose it is the highest-leverage phas
 | 4 | Tue 23 Sep | 3 | Client SDK, cursors visible in two tabs |
 | 5 | Wed 24 Sep | 4 | Demo page, Playwright green, **GIF recorded** |
 | 6 | Thu 25 Sep | 5 | Chaos lab + inspector, convergence test green |
-| 7 | Fri 26 Sep | 8 | Docs, deploy, publish → **send the link** |
-| — | w/c 29 Sep | 6 | Proxy + injection → **the follow-up message** |
+| 7 | Fri 26 Sep | 9 | Docs, deploy, **v1 published** |
+| 8–9 | w/c 29 Sep | 6 | Lifecycle & audit delivery |
+| 10–12 | w/c 29 Sep | 7 | Proxy + injection |
+| — | later | 8 | Optional replay, only if wanted |
 
-If a phase slips, **cut Phase 6 and Phase 7 first — never Phase 5 or Phase 8.** Phase 5 is the argument and Phase 8 is the delivery; the rest is scaffolding around them.
+**Phases 0–5 plus 9 constitute v1.** The repository is complete and defensible at that point; Phases 6–8 land afterwards as additive releases, each one a self-contained increment rather than a missing piece.
+
+If a phase slips, **cut 7 and 8 first — never 5 or 9.** Phase 5 is the argument and Phase 9 is the delivery; the rest is scaffolding around them.
 
 ---
 
@@ -396,6 +457,9 @@ Each of these is irreversible enough to deserve a written rationale, and each on
 | 0008 | Closed Shadow DOM for all injected UI |
 | 0009 | Lossy/lossless/control message classification drives every drop decision |
 | 0010 | Zero-dependency client, 10 KB gzipped budget enforced in CI |
+| 0011 | `visibilitychange → hidden` as the session-end signal; `unload` and `beforeunload` rejected |
+| 0012 | Persist-before-send IndexedDB outbox, cleared only on acknowledgement |
+| 0013 | Three independent session-end paths reconciled into one idempotent audit record |
 
 ---
 
@@ -421,6 +485,7 @@ The repository is finished when all of the following are true:
 - [ ] `models/` is pure, ≥95% branch covered, and provably free of I/O imports
 - [ ] The client bundle is under budget and dependency-free, enforced by CI
 - [ ] The README states plainly what was not built and why
+- [ ] No session in the audit log holds a `start` with no `end`, under any chaos configuration
 - [ ] `npm run verify` and the E2E suite are green on `main`
 
 ---

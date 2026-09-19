@@ -17,7 +17,7 @@
 
 > **Status — in progress.** The design below is locked; the [roadmap](#roadmap) tracks what has actually landed.
 > Behavioural descriptions describe the specification being built against, not code that is finished.
-> Nothing in this README claims a green test that is not in `main`. See [MILESTONE.md](MILESTONE.md) for the phase board.
+> Nothing in this README claims a green test that is not in `main`. The [roadmap](#roadmap) is the source of truth for what ships when.
 
 ---
 
@@ -128,6 +128,10 @@ Each row is a real mechanism in the source, not an intention. Reproduction steps
 | 12 | **Malformed / adversarial input** | Bad frame crashes the process | zod validation at the boundary, size caps, and a 1000-frame fuzz test. Invalid input produces an `error` frame; the connection survives. |
 | 13 | **Scroll hijack** | Being dragged around the page with no escape | Follow mode is opt-in and **breaks on local scroll intent** within one frame. |
 | 14 | **Silent divergence** | Two clients quietly hold different state | Per-participant **state hashes** on the inspector. When they match, the clients have converged — and you can watch them re-converge after a partition heals. |
+| 15 | **Tab closed / navigated away** | The session-end audit event is never delivered | `visibilitychange → hidden` as the flush signal — **not `beforeunload` or `unload`**, which do not fire on freeze, discard or OS kill, and where `unload` also disqualifies bfcache. Delivery via `sendBeacon` / `fetch(keepalive)`, which outlive the document where `fetch` and XHR are cancelled. |
+| 16 | **Browser or OS kills the tab** | Nothing fires at all; no event can help | Two independent covers: an IndexedDB outbox written **before** send and replayed on next load, and a server-side reconciliation sweep that writes an inferred `session.end` from last known state. The server never waits to be told. |
+| 17 | **bfcache restore** | The same beacon fires twice | The canonical duplicate source, so it is demoed rather than hidden. Deduplication on a client-generated `eventId`; the log keeps one event and records that the client reported it twice. |
+| 18 | **Audit gap** | Server holds events 1–7 and 9 | Gaps are detected, not inferred from silence: 8 was *lost*, the session was not quiet. Replay is requested on next connect. A gap on a *lossy* channel is expected and ignored — the message class decides what a gap means. |
 
 ---
 
@@ -148,6 +152,26 @@ The Vue 3 session inspector shows msgs·s⁻¹ in and out, the **coalescing rati
 The headline test in CI runs the full end-to-end suite with **20% loss, 5% duplication, 300 ms ± 150 ms latency and a 5-message reorder window**, and asserts that both clients reach identical state hashes within 500 ms of input stopping. A ten-second full partition must heal to convergence within one second with no manual intervention.
 
 That test is the point of the repository. Everything else is the apparatus that makes it meaningful.
+
+---
+
+## Session lifecycle and the audit trail
+
+When a session ends, that fact has to be recorded. The starting point is that **you cannot guarantee the client tells you anything**, so the design assumes it will not.
+
+Three independent paths report a session ending, and they are reconciled into one record:
+
+| Path | Signal | Covers | Fails when |
+|---|---|---|---|
+| **Client** | `visibilitychange → hidden`, flushed via `sendBeacon` / `fetch(keepalive)` | Ordinary tab close, navigation, backgrounding | The process dies before anything runs |
+| **Socket** | Clean close, or heartbeat timeout on the live connection | Crash, network loss, OS kill | The server itself restarts |
+| **Inferred** | Reconciliation sweep over sessions holding a `start` with no `end` past TTL | Everything the first two missed | — |
+
+Each event carries a client-generated `eventId` and a per-session sequence number, so the log deduplicates on arrival and **keeps one event while recording which paths reported it**. Gaps are detected rather than inferred from silence: holding 1–7 and then 9 means 8 was lost, not that the session went quiet.
+
+Client-side, events stream over the live socket continuously and are acknowledged as they go, so the final flush carries only a short unacknowledged tail — the payload stays inside the shared ~64 KB keepalive budget *by construction* rather than by truncating the record, which would discard exactly the evidence the log exists to hold. Anything unacknowledged is written to an IndexedDB outbox **before** the send is attempted and replayed on the next page load, which is the only thing that covers a crash or an OS kill.
+
+The architectural point: this session already has a live WebSocket, so **the server noticing the socket drop is a more reliable end-of-session signal than anything the page can emit.** The client machinery exists to enrich the record and to cover the window before the server notices — not to be the source of truth. The invariant that matters, asserted under every chaos configuration: *no session holds a `start` with no `end`.*
 
 ---
 
@@ -235,17 +259,21 @@ The property tests are the ones that matter. They prove convergence over the who
 
 ## Roadmap
 
-Tracked in detail in [MILESTONE.md](MILESTONE.md).
+**v1**
 
-- [ ] **Phase 0** — Toolchain, strict TS, CI gate
-- [ ] **Phase 1** — Protocol + pure domain model, property tests
-- [ ] **Phase 2** — Express/`ws` server, MVC, tick coalescing
-- [ ] **Phase 3** — Injectable zero-dependency client SDK
-- [ ] **Phase 4** — Demo page, Playwright two-browser suite
-- [ ] **Phase 5** — Chaos lab, Vue inspector, convergence test
-- [ ] **Phase 6** — Proxy + injection into a page it does not control
-- [ ] **Phase 7** — *(optional)* Durable event log and replay
-- [ ] **Phase 8** — Docs, deploy, publish
+- [ ] Toolchain, strict TypeScript, CI gate
+- [ ] Protocol + pure domain model, property tests
+- [ ] Express/`ws` server, MVC, tick coalescing
+- [ ] Injectable zero-dependency client SDK
+- [ ] Demo page, Playwright two-browser suite
+- [ ] Chaos lab, Vue inspector, convergence test
+- [ ] Docs, deployed demo, published
+
+**After v1, as additive releases**
+
+- [ ] Session lifecycle & audit delivery
+- [ ] Proxy + injection into a page it does not control
+- [ ] *(optional)* Durable event log and replay
 
 ---
 

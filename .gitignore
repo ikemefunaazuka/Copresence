@@ -161,3 +161,7 @@ scratch/
 sandbox/
 notes.local.md
 TODO.local.md
+
+# Working documents — author's own planning, not project artefacts.
+# The README roadmap is the public record of what ships when.
+MILESTONE.md
