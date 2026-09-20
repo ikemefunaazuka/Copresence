@@ -25,12 +25,19 @@ const DEFAULT_CLIENT_DIST_DIR = fileURLToPath(
   new URL('../../../packages/client/dist', import.meta.url),
 );
 
+/** Same reasoning as the client bundle above — `apps/inspector`'s own built Vite output. */
+const DEFAULT_INSPECTOR_DIST_DIR = fileURLToPath(
+  new URL('../../inspector/dist', import.meta.url),
+);
+
 export interface CreateAppOptions {
   readonly corsOrigin: string;
   readonly logger: Logger;
   readonly controllerDeps: ControllerDeps;
   /** Directory the built client bundle (`copresence.js`) is served from at `/static`. Overridable for tests. */
   readonly clientDistDir?: string;
+  /** Directory the built Vue inspector app is served from at `/inspector`. Overridable for tests. */
+  readonly inspectorDistDir?: string;
   /** Powers `/chaos` and its JSON API. Omitted, those routes report an empty/disabled config rather than existing with no effect. */
   readonly chaos?: ChaosMiddleware;
   readonly metrics?: MetricsCollector;
@@ -56,6 +63,7 @@ export function createApp(options: CreateAppOptions): Express {
   app.use(createRateLimitMiddleware());
   app.use(express.json());
   app.use('/static', express.static(options.clientDistDir ?? DEFAULT_CLIENT_DIST_DIR));
+  app.use('/inspector', express.static(options.inspectorDistDir ?? DEFAULT_INSPECTOR_DIST_DIR));
 
   app.use(
     createHttpRoutes(options.controllerDeps, {
