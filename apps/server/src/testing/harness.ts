@@ -1,5 +1,6 @@
 import type { AddressInfo } from 'node:net';
 
+import { classify, encodeOutbound } from '@copresence/protocol';
 import type { OutboundMessage } from '@copresence/protocol';
 import WebSocket from 'ws';
 import type { RawData } from 'ws';
@@ -12,6 +13,9 @@ import type { CopresenceServer } from '../server.js';
 import { createServer } from '../server.js';
 import { AuditLog } from '../services/AuditLog.js';
 import { BroadcastHub } from '../services/BroadcastHub.js';
+import { ChaosMiddleware } from '../services/ChaosMiddleware.js';
+import { ConvergenceTracker } from '../services/ConvergenceTracker.js';
+import { MetricsCollector } from '../services/MetricsCollector.js';
 import { Reaper } from '../services/Reaper.js';
 import { SessionRegistry } from '../services/SessionRegistry.js';
 import { TickScheduler } from '../services/TickScheduler.js';
@@ -20,7 +24,12 @@ import { TickScheduler } from '../services/TickScheduler.js';
  * Boots the real composition — `createApp` + `createServer`, real
  * services, a real `http.Server` on an OS-assigned port — for integration
  * tests that need genuine sockets, not mocks. Not unit-tested itself;
- * exercised by every test that uses it.
+ * exercised by every test that uses it. Wires `ChaosMiddleware` +
+ * `MetricsCollector` + `ConvergenceTracker` exactly like `index.ts`'s own
+ * composition root does, so the chaos-lab exit-criteria tests exercise the
+ * real, complete wiring — including the actual `/api/chaos` and
+ * `/api/sessions/:sid/convergence` HTTP surface — rather than reaching
+ * around it.
  */
 export interface TestServer {
   readonly port: number;
@@ -29,6 +38,9 @@ export interface TestServer {
   readonly auditLog: AuditLog;
   readonly tickScheduler: TickScheduler;
   readonly reaper: Reaper;
+  readonly chaos: ChaosMiddleware;
+  readonly metrics: MetricsCollector;
+  readonly convergenceTracker: ConvergenceTracker;
   readonly server: CopresenceServer;
   close(): Promise<void>;
 }
@@ -44,11 +56,34 @@ export async function startTestServer(
 ): Promise<TestServer> {
   const logger = createLogger('silent');
   const registry = new SessionRegistry(systemClock);
-  const hub = new BroadcastHub();
   const auditLog = new AuditLog();
-  const controllerDeps: ControllerDeps = { registry, hub, auditLog, clock: systemClock };
+  const metrics = new MetricsCollector();
+  const convergenceTracker = new ConvergenceTracker();
+  const chaos = new ChaosMiddleware({
+    clock: systemClock,
+    onDeliver: (pid, message, deliveredAt) => {
+      metrics.recordOutbound(Buffer.byteLength(encodeOutbound(message)));
+      metrics.recordLatencySample(deliveredAt - message.ts);
+      convergenceTracker.recordDelivery(message.sid, pid, message);
+    },
+    onDrop: (_pid, message) => {
+      metrics.recordDrop(classify(message.t));
+    },
+    onDuplicate: () => {
+      metrics.recordDuplicateSent();
+    },
+  });
+  const hub = new BroadcastHub({ chaos });
+  const controllerDeps: ControllerDeps = { registry, hub, auditLog, clock: systemClock, metrics };
 
-  const app = createApp({ corsOrigin: options.corsOrigin ?? '*', logger, controllerDeps });
+  const app = createApp({
+    corsOrigin: options.corsOrigin ?? '*',
+    logger,
+    controllerDeps,
+    chaos,
+    metrics,
+    convergenceTracker,
+  });
   const server = createServer({
     app,
     controllerDeps,
@@ -66,6 +101,7 @@ export async function startTestServer(
     hub,
     clock: systemClock,
     tickRateHz: options.tickRateHz ?? 20,
+    metrics,
   });
   const reaper = new Reaper({
     registry,
@@ -89,6 +125,9 @@ export async function startTestServer(
     auditLog,
     tickScheduler,
     reaper,
+    chaos,
+    metrics,
+    convergenceTracker,
     server,
     async close() {
       tickScheduler.stop();

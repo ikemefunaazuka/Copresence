@@ -10,6 +10,19 @@ export const PROTOCOL_VERSION = 1 as const;
 /** Server broadcast tick rate, in Hz — see docs/adr/0003. */
 export const TICK_RATE_HZ = 20;
 
+/**
+ * How long the server keeps re-confirming a session's last-known presence
+ * state via redundant patch resends after it goes quiet (nothing newly
+ * dirty). Patches carry absolute, last-writer-wins values and are
+ * broadcast exactly once per dirty flush with no acknowledgement or
+ * redelivery — so under any packet loss, the single final patch after
+ * real movement stops could simply never arrive for someone, with nothing
+ * afterward to self-correct it (nothing stays dirty once input has
+ * stopped). Redundant resends for a short window close that gap cheaply,
+ * without needing a full ack/retry mechanism.
+ */
+export const PATCH_SETTLE_WINDOW_MS = 750;
+
 /** Silence before the heartbeat reaper drops a participant. */
 export const PARTICIPANT_TTL_MS = 15_000;
 
