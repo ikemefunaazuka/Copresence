@@ -1,6 +1,6 @@
-import { readScrollOffset } from './viewport.js';
 import { createRafScheduler } from './rafScheduler.js';
 import type { RafScheduler } from './rafScheduler.js';
+import { readScrollOffset } from './viewport.js';
 
 export interface ScrollPosition {
   readonly x: number;

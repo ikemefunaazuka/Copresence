@@ -40,7 +40,11 @@ export const EMPTY_PRESENCE: PresenceState = {};
  * callers detect "nothing changed" with `===` instead of a deep-equal
  * check (see `applyEvent`'s tick-skipping).
  */
-export function withCursor(state: PresenceState, point: CursorPosition, seq: number): PresenceState {
+export function withCursor(
+  state: PresenceState,
+  point: CursorPosition,
+  seq: number,
+): PresenceState {
   if (state.cursorSeq !== undefined && seq <= state.cursorSeq) return state;
   return { ...state, cursor: point, cursorSeq: seq };
 }

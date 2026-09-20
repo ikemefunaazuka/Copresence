@@ -9,7 +9,7 @@
 export interface ShadowHost {
   readonly host: HTMLElement;
   readonly root: ShadowRoot;
-  destroy(): void;
+  readonly destroy: () => void;
 }
 
 export function createShadowHost(doc: Document = document): ShadowHost {
@@ -18,9 +18,14 @@ export function createShadowHost(doc: Document = document): ShadowHost {
   // Fixed, full-viewport, click-through, above everything: an overlay
   // that intercepted pointer events would break the page it is injected
   // into, which is exactly the failure mode this whole design exists to
-  // avoid.
+  // avoid. Every declaration carries `!important`: a plain inline style
+  // loses to an author stylesheet rule that itself uses `!important`
+  // (e.g. `* { position: relative !important }`), since that rule and
+  // this inline declaration are compared by specificity only once
+  // they're in the same importance tier. An inline `!important`
+  // declaration is what actually wins there.
   host.style.cssText =
-    'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
+    'all:initial !important;position:fixed !important;inset:0 !important;pointer-events:none !important;z-index:2147483647 !important;';
   doc.body.appendChild(host);
   const root = host.attachShadow({ mode: 'closed' });
 

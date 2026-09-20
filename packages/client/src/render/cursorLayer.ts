@@ -13,10 +13,19 @@ export interface CursorLayer {
 
 const DOT_SIZE_PX = 12;
 
-export function createCursorLayer(root: ShadowRoot | Element, doc: Document = document): CursorLayer {
-  const elements = new Map<string, { readonly wrapper: HTMLElement; readonly label: HTMLElement }>();
+export function createCursorLayer(
+  root: ShadowRoot | Element,
+  doc: Document = document,
+): CursorLayer {
+  const elements = new Map<
+    string,
+    { readonly wrapper: HTMLElement; readonly label: HTMLElement }
+  >();
 
-  function elementFor(pid: string, color: string): { readonly wrapper: HTMLElement; readonly label: HTMLElement } {
+  function elementFor(
+    pid: string,
+    color: string,
+  ): { readonly wrapper: HTMLElement; readonly label: HTMLElement } {
     const existing = elements.get(pid);
     if (existing) return existing;
 

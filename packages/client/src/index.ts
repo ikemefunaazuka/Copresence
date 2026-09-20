@@ -11,8 +11,15 @@ import { createScrollFollow } from './render/scrollFollow.js';
 import { createShadowHost } from './render/shadowRoot.js';
 import { opacityFor, stalenessOf } from './render/staleness.js';
 import { createConnection, parseOutboundFrame } from './transport/connection.js';
-import type { Connection, ConnectionStatus } from './transport/connection.js';
-import { buildBye, buildCursor, buildHello, buildPing, buildScroll, createWireContext } from './wire.js';
+import type { Connection, ConnectionStatus, WebSocketLike } from './transport/connection.js';
+import {
+  buildBye,
+  buildCursor,
+  buildHello,
+  buildPing,
+  buildScroll,
+  createWireContext,
+} from './wire.js';
 import type { WireContext } from './wire.js';
 
 /**
@@ -40,6 +47,8 @@ export interface CopresenceOptions {
   readonly pid?: string;
   readonly doc?: Document;
   readonly win?: Window;
+  /** Injectable so tests can drive the whole SDK without a real network connection. */
+  readonly createSocket?: (url: string) => WebSocketLike;
 }
 
 export interface CopresenceInstance {
@@ -94,6 +103,7 @@ export function init(options: CopresenceOptions): CopresenceInstance {
     url: options.wsUrl,
     onMessage: handleRawMessage,
     onStatusChange: handleStatusChange,
+    ...(options.createSocket ? { createSocket: options.createSocket } : {}),
   });
 
   const pointerCapture = createPointerCapture({
@@ -294,7 +304,7 @@ export function init(options: CopresenceOptions): CopresenceInstance {
     }
     scrollCapture.start();
     doc.addEventListener('visibilitychange', handleVisibilityChange);
-    if (renderHandle === undefined) renderHandle = win.requestAnimationFrame(renderFrame);
+    renderHandle ??= win.requestAnimationFrame(renderFrame);
   }
 
   function disconnect(): void {

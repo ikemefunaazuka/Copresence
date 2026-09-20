@@ -12,7 +12,10 @@ export interface ViewportMetadata {
   readonly dpr: number;
 }
 
-export function readViewportMetadata(doc: Document = document, win: Window = window): ViewportMetadata {
+export function readViewportMetadata(
+  doc: Document = document,
+  win: Window = window,
+): ViewportMetadata {
   const root = doc.documentElement;
   return {
     docWidth: root.scrollWidth,

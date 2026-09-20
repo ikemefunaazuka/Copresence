@@ -19,8 +19,14 @@ export interface WebSocketLike {
   bufferedAmount: number;
   send(data: string): void;
   close(code?: number, reason?: string): void;
-  addEventListener(type: string, listener: (event: MessageEvent | CloseEvent | Event) => void): void;
-  removeEventListener(type: string, listener: (event: MessageEvent | CloseEvent | Event) => void): void;
+  addEventListener(
+    type: string,
+    listener: (event: MessageEvent | CloseEvent | Event) => void,
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: (event: MessageEvent | CloseEvent | Event) => void,
+  ): void;
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
@@ -68,7 +74,7 @@ export function createConnection(options: ConnectionOptions): Connection {
   const random = options.random ?? Math.random;
   const setTimeoutFn = options.setTimeoutFn ?? ((cb, ms) => setTimeout(cb, ms));
   const clearTimeoutFn = options.clearTimeoutFn ?? ((handle) => clearTimeout(handle));
-  const createSocket = options.createSocket ?? ((url: string) => new WebSocket(url) as unknown as WebSocketLike);
+  const createSocket = options.createSocket ?? ((url: string) => new WebSocket(url));
 
   const queue: OutboundQueue = createOutboundQueue();
   let socket: WebSocketLike | undefined;
@@ -88,14 +94,14 @@ export function createConnection(options: ConnectionOptions): Connection {
   }
 
   function flushQueue(): void {
-    if (!socket || socket.readyState !== OPEN) return;
+    if (socket?.readyState !== OPEN) return;
     const pending = queue.drain();
     for (let i = 0; i < pending.length; i += 1) {
       if (isBackpressured()) {
         // Stop sending; re-queue what's left, applying the same
-        // backpressure drop policy the milestone specifies: lossy
-        // frames are discarded outright rather than queued to wait,
-        // since a newer one will exist by the time there is room again.
+        // backpressure drop policy as everywhere else: lossy frames are
+        // discarded outright rather than queued to wait, since a newer
+        // one will exist by the time there is room again.
         for (let j = i; j < pending.length; j += 1) {
           const remaining = pending[j]!;
           if (classify(remaining.t) === 'lossy') continue;
@@ -167,7 +173,12 @@ export function createConnection(options: ConnectionOptions): Connection {
   function connect(): void {
     // Idempotent: already connecting/open/reconnecting is a no-op —
     // never opens a second socket underneath an existing one.
-    if (currentStatus === 'connecting' || currentStatus === 'open' || currentStatus === 'reconnecting') return;
+    if (
+      currentStatus === 'connecting' ||
+      currentStatus === 'open' ||
+      currentStatus === 'reconnecting'
+    )
+      return;
     intentionalDisconnect = false;
     reconnectAttempt = 0;
     openSocket();

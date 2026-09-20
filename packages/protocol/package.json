@@ -5,6 +5,7 @@
   "type": "module",
   "description": "The wire contract shared by the Copresence client and server — one definition, both ends fail to compile when it changes.",
   "license": "MIT",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
