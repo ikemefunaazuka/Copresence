@@ -54,16 +54,16 @@ Reproduction steps that reference the chaos panel assume the server is running (
 - **Lives in:** `apps/server/src/services/TickScheduler.ts`, `apps/server/src/views/presenters.ts` (`toPatch`).
 - **Reproduce:** set `dropRate` on `/chaos` to 30–50% and watch cursors keep tracking, just more coarsely.
 
-### Dropped *final* patch after movement stops
+### Dropped _final_ patch after movement stops
 
 - **Symptom, if unhandled:** the one patch describing where a cursor came to rest is lost, and — because nothing is dirty anymore — nothing ever corrects it. The participant stays visibly wrong indefinitely.
-- **Mechanism:** for `PATCH_SETTLE_WINDOW_MS` (750 ms) after a session's last genuinely dirty tick, `TickScheduler` keeps re-broadcasting that same last-known content on every subsequent tick, each with a fresh, higher `seq`. Found by chaos-testing convergence itself, not assumed — see `docs/adr` register and this phase's MILESTONE notes for the full story.
+- **Mechanism:** for `PATCH_SETTLE_WINDOW_MS` (750 ms) after a session's last genuinely dirty tick, `TickScheduler` keeps re-broadcasting that same last-known content on every subsequent tick, each with a fresh, higher `seq`. Found by chaos-testing convergence itself, not assumed.
 - **Lives in:** `apps/server/src/services/TickScheduler.ts`, `PATCH_SETTLE_WINDOW_MS` in `packages/protocol/src/constants.ts`.
 - **Reproduce:** `TickScheduler.test.ts -t "settles by re-confirming"`; live, the convergence test below exercises it under real chaos.
 
 ### Reordered outbound patch
 
-- **Symptom, if unhandled:** a patch describing an older position arrives *after* a newer one and is applied, moving a cursor backwards until the next tick corrects it — or never, if movement has stopped.
+- **Symptom, if unhandled:** a patch describing an older position arrives _after_ a newer one and is applied, moving a cursor backwards until the next tick corrects it — or never, if movement has stopped.
 - **Mechanism:** the client keeps its own highest-accepted patch `seq` and ignores anything at or below it — the same seq-guard principle `SequenceGuard` applies server-side for inbound messages, mirrored here for outbound ones. `ConvergenceTracker`'s simulation applies the identical rule, so it never reports a false convergence that a real client wouldn't also reach.
 - **Lives in:** `packages/client/src/index.ts` (`lastPatchSeq`), `apps/server/src/services/ConvergenceTracker.ts`.
 - **Reproduce:** `index.test.ts -t "reordered (stale) patch"` (client); `ConvergenceTracker.test.ts -t "reordered (stale) patch"` (server simulation); live, set `reorderWindow` on `/chaos` to 5–10.
@@ -77,7 +77,7 @@ Reproduction steps that reference the chaos panel assume the server is running (
 
 ### Total network partition
 
-- **Symptom, if unhandled:** an extended outage with no special handling looks identical to a very high, sustained drop rate — which this system already tolerates — but a *real* partition also needs to heal cleanly once connectivity returns, with no manual reconnect.
+- **Symptom, if unhandled:** an extended outage with no special handling looks identical to a very high, sustained drop rate — which this system already tolerates — but a _real_ partition also needs to heal cleanly once connectivity returns, with no manual reconnect.
 - **Mechanism:** `ChaosMiddleware.startPartition(durationMs)` drops every outbound send unconditionally for the window, regardless of `dropRate`. Nothing special is needed to heal it — the moment the window ends, normal ticking (plus the settle window above) resynchronises everyone within the next few ticks.
 - **Lives in:** `apps/server/src/services/ChaosMiddleware.ts`.
 - **Reproduce:** `chaos.integration.test.ts -t "10s partition"`; live, the "Partition for 10s" button on `/chaos`.

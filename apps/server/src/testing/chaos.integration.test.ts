@@ -96,102 +96,93 @@ describe('chaos lab integration', () => {
     expect(snapshot.coalescingRatio).toBeGreaterThanOrEqual(5);
   });
 
-  it(
-    'two clients converge to identical simulated state within 500ms of input stopping, under sustained chaos (20% drop, 5% duplicate, 300±150ms latency, reorder window 5)',
-    async () => {
-      const sid = freshSessionId();
-      const pidA = freshParticipantId();
-      const pidB = freshParticipantId();
-      const a = await joinSession(testServer.port, sid, pidA);
-      const b = await joinSession(testServer.port, sid, pidB);
-      clients.push(a, b);
+  it('two clients converge to identical simulated state within 500ms of input stopping, under sustained chaos (20% drop, 5% duplicate, 300±150ms latency, reorder window 5)', async () => {
+    const sid = freshSessionId();
+    const pidA = freshParticipantId();
+    const pidB = freshParticipantId();
+    const a = await joinSession(testServer.port, sid, pidA);
+    const b = await joinSession(testServer.port, sid, pidB);
+    clients.push(a, b);
 
-      // Chaos is enabled only after both are already connected — it
-      // represents degraded *ongoing* network conditions, not an
-      // unreliable initial handshake (see MILESTONE.md's Phase 5 build
-      // notes for why this scope choice was made).
-      testServer.chaos.configure({
-        dropRate: 0.2,
-        duplicateRate: 0.05,
-        latencyMs: 300,
-        jitterMs: 150,
-        reorderWindow: 5,
-      });
+    // Chaos is enabled only after both are already connected — it
+    // represents degraded *ongoing* network conditions, not an
+    // unreliable initial handshake.
+    testServer.chaos.configure({
+      dropRate: 0.2,
+      duplicateRate: 0.05,
+      latencyMs: 300,
+      jitterMs: 150,
+      reorderWindow: 5,
+    });
 
-      let seqA = 2;
-      let seqB = 2;
-      const inputDurationMs = 1_000;
-      const start = Date.now();
-      while (Date.now() - start < inputDurationMs) {
-        sendCursor(a, sid, pidA, seqA++);
-        sendCursor(b, sid, pidB, seqB++);
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-      // Input has now stopped.
-
-      const deadline = Date.now() + 500;
-      let converged = false;
-      while (Date.now() < deadline) {
-        const snapshot = testServer.convergenceTracker.snapshot(sid as never);
-        if (snapshot.converged && Object.keys(snapshot.hashes).length === 2) {
-          converged = true;
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-
-      expect(converged).toBe(true);
-    },
-    10_000,
-  );
-
-  it(
-    'a 10s partition, then healed, converges within 1s with zero manual intervention',
-    async () => {
-      const sid = freshSessionId();
-      const pidA = freshParticipantId();
-      const pidB = freshParticipantId();
-      const a = await joinSession(testServer.port, sid, pidA);
-      const b = await joinSession(testServer.port, sid, pidB);
-      clients.push(a, b);
-
-      let seqA = 2;
-      let seqB = 2;
+    let seqA = 2;
+    let seqB = 2;
+    const inputDurationMs = 1_000;
+    const start = Date.now();
+    while (Date.now() - start < inputDurationMs) {
       sendCursor(a, sid, pidA, seqA++);
       sendCursor(b, sid, pidB, seqB++);
-      await new Promise((resolve) => setTimeout(resolve, 150)); // let the pre-partition state actually land on both sides
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    // Input has now stopped.
 
-      testServer.chaos.startPartition(10_000);
-
-      // Traffic continues during the outage — none of it should arrive.
-      const duringPartition = Date.now() + 10_000;
-      while (Date.now() < duringPartition) {
-        sendCursor(a, sid, pidA, seqA++);
-        sendCursor(b, sid, pidB, seqB++);
-        await new Promise((resolve) => setTimeout(resolve, 50));
+    const deadline = Date.now() + 500;
+    let converged = false;
+    while (Date.now() < deadline) {
+      const snapshot = testServer.convergenceTracker.snapshot(sid as never);
+      if (snapshot.converged && Object.keys(snapshot.hashes).length === 2) {
+        converged = true;
+        break;
       }
-      expect(testServer.chaos.isPartitioned()).toBe(false); // the 10s window has now elapsed on its own
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
 
-      // Input continues briefly past the heal, then stops.
-      for (let i = 0; i < 10; i += 1) {
-        sendCursor(a, sid, pidA, seqA++);
-        sendCursor(b, sid, pidB, seqB++);
-        await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(converged).toBe(true);
+  }, 10_000);
+
+  it('a 10s partition, then healed, converges within 1s with zero manual intervention', async () => {
+    const sid = freshSessionId();
+    const pidA = freshParticipantId();
+    const pidB = freshParticipantId();
+    const a = await joinSession(testServer.port, sid, pidA);
+    const b = await joinSession(testServer.port, sid, pidB);
+    clients.push(a, b);
+
+    let seqA = 2;
+    let seqB = 2;
+    sendCursor(a, sid, pidA, seqA++);
+    sendCursor(b, sid, pidB, seqB++);
+    await new Promise((resolve) => setTimeout(resolve, 150)); // let the pre-partition state actually land on both sides
+
+    testServer.chaos.startPartition(10_000);
+
+    // Traffic continues during the outage — none of it should arrive.
+    const duringPartition = Date.now() + 10_000;
+    while (Date.now() < duringPartition) {
+      sendCursor(a, sid, pidA, seqA++);
+      sendCursor(b, sid, pidB, seqB++);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    expect(testServer.chaos.isPartitioned()).toBe(false); // the 10s window has now elapsed on its own
+
+    // Input continues briefly past the heal, then stops.
+    for (let i = 0; i < 10; i += 1) {
+      sendCursor(a, sid, pidA, seqA++);
+      sendCursor(b, sid, pidB, seqB++);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    const deadline = Date.now() + 1_000;
+    let converged = false;
+    while (Date.now() < deadline) {
+      const snapshot = testServer.convergenceTracker.snapshot(sid as never);
+      if (snapshot.converged && Object.keys(snapshot.hashes).length === 2) {
+        converged = true;
+        break;
       }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
 
-      const deadline = Date.now() + 1_000;
-      let converged = false;
-      while (Date.now() < deadline) {
-        const snapshot = testServer.convergenceTracker.snapshot(sid as never);
-        if (snapshot.converged && Object.keys(snapshot.hashes).length === 2) {
-          converged = true;
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-
-      expect(converged).toBe(true);
-    },
-    15_000,
-  );
+    expect(converged).toBe(true);
+  }, 15_000);
 });

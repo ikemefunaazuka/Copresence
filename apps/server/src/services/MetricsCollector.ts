@@ -39,10 +39,10 @@ const MAX_LATENCY_SAMPLES = 1_000;
  * Global counters + a bounded latency sample buffer, read by `/metrics`
  * (Prometheus text) and the inspector's own JSON polling. Deliberately a
  * plain in-memory accumulator — the same "no database needed" posture as
- * everything else in this repo (see MILESTONE §3) — reset on restart,
- * which is fine for a live observability surface that is describing the
- * server's current behaviour, not keeping a durable record of it (that is
- * `AuditLog`'s job, a different concern entirely).
+ * everything else in this repo — reset on restart, which is fine for a
+ * live observability surface that is describing the server's current
+ * behaviour, not keeping a durable record of it (that is `AuditLog`'s
+ * job, a different concern entirely).
  */
 export class MetricsCollector {
   #inboundMessages = 0;

@@ -26,9 +26,7 @@ const DEFAULT_CLIENT_DIST_DIR = fileURLToPath(
 );
 
 /** Same reasoning as the client bundle above — `apps/inspector`'s own built Vite output. */
-const DEFAULT_INSPECTOR_DIST_DIR = fileURLToPath(
-  new URL('../../inspector/dist', import.meta.url),
-);
+const DEFAULT_INSPECTOR_DIST_DIR = fileURLToPath(new URL('../../inspector/dist', import.meta.url));
 
 export interface CreateAppOptions {
   readonly corsOrigin: string;
