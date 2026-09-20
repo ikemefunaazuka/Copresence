@@ -149,7 +149,11 @@ describe('ChaosMiddleware', () => {
     scheduled[0]!.cb();
 
     expect(sent).toBe(1);
-    expect(onDeliver).toHaveBeenCalledWith(pid('p1'), expect.objectContaining({ t: 'pong' }), 1_300);
+    expect(onDeliver).toHaveBeenCalledWith(
+      pid('p1'),
+      expect.objectContaining({ t: 'pong' }),
+      1_300,
+    );
   });
 
   it('jitter can only ever widen or narrow the delay around latencyMs, never below 0', () => {

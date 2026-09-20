@@ -89,10 +89,36 @@ export class TickScheduler {
 
     for (const session of this.#registry.all()) {
       const patch = toPatch(session, this.#seq, now);
-      if (!patch) continue;
-      this.#hub.broadcastToSession(session.sid, patch);
+      if (patch) {
+        this.#hub.broadcastToSession(session.sid, patch);
+        this.#metrics?.recordPatchEmitted();
+        this.#registry.save(clearDirty(session));
+        this.#settling.set(session.sid, {
+          patches: patch.patches,
+          settleUntil: now + PATCH_SETTLE_WINDOW_MS,
+        });
+        continue;
+      }
+
+      const settle = this.#settling.get(session.sid);
+      if (!settle) continue;
+      if (now >= settle.settleUntil) {
+        this.#settling.delete(session.sid);
+        continue;
+      }
+      const resend: PatchMessage = {
+        v: PROTOCOL_VERSION,
+        t: 'patch',
+        sid: session.sid,
+        seq: this.#seq,
+        ts: now,
+        patches: settle.patches,
+      };
+      this.#hub.broadcastToSession(session.sid, resend);
+      // Still one broadcast operation, and still real outbound bytes —
+      // counting it keeps the coalescing ratio an honest reflection of
+      // actual traffic rather than only counting genuinely-new data.
       this.#metrics?.recordPatchEmitted();
-      this.#registry.save(clearDirty(session));
     }
   }
 }

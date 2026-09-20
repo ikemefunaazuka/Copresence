@@ -158,7 +158,11 @@ describe('ConvergenceTracker', () => {
 
   it('forget() removes a session entirely', () => {
     const tracker = new ConvergenceTracker();
-    tracker.recordDelivery(sid('s1'), pid('a'), welcome([{ pid: pid('a'), color: '#f00', lastSeenAt: 0 }]));
+    tracker.recordDelivery(
+      sid('s1'),
+      pid('a'),
+      welcome([{ pid: pid('a'), color: '#f00', lastSeenAt: 0 }]),
+    );
     tracker.forget(sid('s1'));
 
     expect(tracker.snapshot(sid('s1'))).toEqual({ hashes: {}, converged: true });
@@ -166,7 +170,11 @@ describe('ConvergenceTracker', () => {
 
   it('pong and error messages are ignored — neither carries roster state', () => {
     const tracker = new ConvergenceTracker();
-    tracker.recordDelivery(sid('s1'), pid('a'), welcome([{ pid: pid('a'), color: '#f00', lastSeenAt: 0 }]));
+    tracker.recordDelivery(
+      sid('s1'),
+      pid('a'),
+      welcome([{ pid: pid('a'), color: '#f00', lastSeenAt: 0 }]),
+    );
     const before = tracker.snapshot(sid('s1')).hashes['a'];
 
     tracker.recordDelivery(sid('s1'), pid('a'), {

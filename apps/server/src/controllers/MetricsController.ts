@@ -4,26 +4,83 @@ import type { Request, Response } from 'express';
 import type { ConvergenceTracker } from '../services/ConvergenceTracker.js';
 import type { MetricsCollector, MetricsSnapshot } from '../services/MetricsCollector.js';
 
-function metricLines(name: string, help: string, type: 'counter' | 'gauge', value: number): string[] {
+function metricLines(
+  name: string,
+  help: string,
+  type: 'counter' | 'gauge',
+  value: number,
+): string[] {
   return [`# HELP ${name} ${help}`, `# TYPE ${name} ${type}`, `${name} ${value}`];
 }
 
 /** Plain Prometheus text exposition format (v0.0.4) — no client library needed for a handful of scalar metrics. */
 function toPrometheusText(snapshot: MetricsSnapshot): string {
   const lines: string[] = [
-    ...metricLines('copresence_inbound_messages_total', 'Inbound WebSocket messages received.', 'counter', snapshot.inboundMessages),
-    ...metricLines('copresence_inbound_bytes_total', 'Inbound bytes received.', 'counter', snapshot.inboundBytes),
-    ...metricLines('copresence_outbound_messages_total', 'Outbound messages actually delivered, post-chaos.', 'counter', snapshot.outboundMessages),
-    ...metricLines('copresence_outbound_bytes_total', 'Outbound bytes actually delivered, post-chaos.', 'counter', snapshot.outboundBytes),
-    ...metricLines('copresence_events_received_total', 'Inbound cursor/scroll events received.', 'counter', snapshot.eventsReceived),
-    ...metricLines('copresence_patches_emitted_total', 'Coalesced patch broadcasts emitted.', 'counter', snapshot.patchesEmitted),
-    ...metricLines('copresence_duplicates_sent_total', 'Outbound messages duplicated by chaos.', 'counter', snapshot.duplicatesSent),
-    ...metricLines('copresence_duplicates_rejected_total', 'Inbound duplicate messages rejected.', 'counter', snapshot.duplicatesRejected),
-    ...metricLines('copresence_out_of_order_rejected_total', 'Inbound out-of-order messages rejected.', 'counter', snapshot.outOfOrderRejected),
-    ...metricLines('copresence_resyncs_triggered_total', 'Resyncs triggered by a repeat hello.', 'counter', snapshot.resyncsTriggered),
+    ...metricLines(
+      'copresence_inbound_messages_total',
+      'Inbound WebSocket messages received.',
+      'counter',
+      snapshot.inboundMessages,
+    ),
+    ...metricLines(
+      'copresence_inbound_bytes_total',
+      'Inbound bytes received.',
+      'counter',
+      snapshot.inboundBytes,
+    ),
+    ...metricLines(
+      'copresence_outbound_messages_total',
+      'Outbound messages actually delivered, post-chaos.',
+      'counter',
+      snapshot.outboundMessages,
+    ),
+    ...metricLines(
+      'copresence_outbound_bytes_total',
+      'Outbound bytes actually delivered, post-chaos.',
+      'counter',
+      snapshot.outboundBytes,
+    ),
+    ...metricLines(
+      'copresence_events_received_total',
+      'Inbound cursor/scroll events received.',
+      'counter',
+      snapshot.eventsReceived,
+    ),
+    ...metricLines(
+      'copresence_patches_emitted_total',
+      'Coalesced patch broadcasts emitted.',
+      'counter',
+      snapshot.patchesEmitted,
+    ),
+    ...metricLines(
+      'copresence_duplicates_sent_total',
+      'Outbound messages duplicated by chaos.',
+      'counter',
+      snapshot.duplicatesSent,
+    ),
+    ...metricLines(
+      'copresence_duplicates_rejected_total',
+      'Inbound duplicate messages rejected.',
+      'counter',
+      snapshot.duplicatesRejected,
+    ),
+    ...metricLines(
+      'copresence_out_of_order_rejected_total',
+      'Inbound out-of-order messages rejected.',
+      'counter',
+      snapshot.outOfOrderRejected,
+    ),
+    ...metricLines(
+      'copresence_resyncs_triggered_total',
+      'Resyncs triggered by a repeat hello.',
+      'counter',
+      snapshot.resyncsTriggered,
+    ),
   ];
 
-  lines.push('# HELP copresence_dropped_total Outbound messages dropped by chaos, by message class.');
+  lines.push(
+    '# HELP copresence_dropped_total Outbound messages dropped by chaos, by message class.',
+  );
   lines.push('# TYPE copresence_dropped_total counter');
   for (const [messageClass, count] of Object.entries(snapshot.droppedByClass)) {
     lines.push(`copresence_dropped_total{class="${messageClass}"} ${count}`);
@@ -36,7 +93,9 @@ function toPrometheusText(snapshot: MetricsSnapshot): string {
   }
 
   if (snapshot.latencyMs) {
-    lines.push('# HELP copresence_delivery_latency_ms Applied send-to-delivery latency, post-chaos, in milliseconds.');
+    lines.push(
+      '# HELP copresence_delivery_latency_ms Applied send-to-delivery latency, post-chaos, in milliseconds.',
+    );
     lines.push('# TYPE copresence_delivery_latency_ms gauge');
     lines.push(`copresence_delivery_latency_ms{quantile="0.5"} ${snapshot.latencyMs.p50}`);
     lines.push(`copresence_delivery_latency_ms{quantile="0.95"} ${snapshot.latencyMs.p95}`);
@@ -58,7 +117,10 @@ export function createMetricsController(deps: MetricsControllerDeps) {
         res.status(503).type('text/plain').send('metrics not enabled\n');
         return;
       }
-      res.status(200).type('text/plain; version=0.0.4').send(toPrometheusText(deps.metrics.snapshot()));
+      res
+        .status(200)
+        .type('text/plain; version=0.0.4')
+        .send(toPrometheusText(deps.metrics.snapshot()));
     },
 
     json: (_req: Request, res: Response): void => {

@@ -38,7 +38,10 @@ function fakeResponse(): {
 
 describe('MetricsController.prometheus', () => {
   it('reports 503 when metrics is not wired', () => {
-    const controller = createMetricsController({ metrics: undefined, convergenceTracker: undefined });
+    const controller = createMetricsController({
+      metrics: undefined,
+      convergenceTracker: undefined,
+    });
     const { res, status } = fakeResponse();
 
     controller.prometheus({} as Request, res);
@@ -92,7 +95,10 @@ describe('MetricsController.json', () => {
   });
 
   it('returns null metrics when not wired, rather than throwing', () => {
-    const controller = createMetricsController({ metrics: undefined, convergenceTracker: undefined });
+    const controller = createMetricsController({
+      metrics: undefined,
+      convergenceTracker: undefined,
+    });
     const { res, body } = fakeResponse();
 
     expect(() => controller.json({} as Request, res)).not.toThrow();
@@ -102,7 +108,10 @@ describe('MetricsController.json', () => {
 
 describe('MetricsController.convergence', () => {
   it('returns 400 for an invalid session id', () => {
-    const controller = createMetricsController({ metrics: undefined, convergenceTracker: undefined });
+    const controller = createMetricsController({
+      metrics: undefined,
+      convergenceTracker: undefined,
+    });
     const { res, status } = fakeResponse();
 
     controller.convergence({ params: { sid: '' } } as unknown as Request, res);
@@ -111,7 +120,10 @@ describe('MetricsController.convergence', () => {
   });
 
   it('returns a trivially-converged empty snapshot when no tracker is wired', () => {
-    const controller = createMetricsController({ metrics: undefined, convergenceTracker: undefined });
+    const controller = createMetricsController({
+      metrics: undefined,
+      convergenceTracker: undefined,
+    });
     const { res, body } = fakeResponse();
 
     controller.convergence({ params: { sid: 'some-session' } } as unknown as Request, res);

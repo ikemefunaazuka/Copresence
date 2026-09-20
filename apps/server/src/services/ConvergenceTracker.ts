@@ -139,7 +139,8 @@ function hashOf(participants: Map<ParticipantId, SimulatedParticipant>): string 
   const canonical = Array.from(participants.entries())
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(
-      ([pid, p]) => `${pid}:${p.color}:${p.x ?? ''}:${p.y ?? ''}:${p.scrollX ?? ''}:${p.scrollY ?? ''}`,
+      ([pid, p]) =>
+        `${pid}:${p.color}:${p.x ?? ''}:${p.y ?? ''}:${p.scrollX ?? ''}:${p.scrollY ?? ''}`,
     )
     .join('|');
 

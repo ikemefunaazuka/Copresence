@@ -556,8 +556,16 @@ describe('realtime integration', () => {
 
     const errorsAfterDuplicate = a.received().filter(isError);
     expect(errorsAfterDuplicate).toEqual([]);
+    // The duplicate was dropped before ever reaching `applyEvent`, so it
+    // never marked anything dirty — every patch b receives (the real one,
+    // plus any settle-window resends of it) carries the first, correct
+    // position. If the duplicate had been applied, at least one of these
+    // would show x: 0.9, y: 999 instead.
     const patchesAfterFirst = b.received().filter(isPatch);
-    expect(patchesAfterFirst).toHaveLength(1); // only the first cursor move ever produced a patch
+    expect(patchesAfterFirst.length).toBeGreaterThan(0);
+    for (const patch of patchesAfterFirst) {
+      expect(patch.patches).toEqual([{ pid: pidA, x: 0.1, y: 1 }]);
+    }
   });
 
   it('connecting without a sid query parameter is rejected at the upgrade, with close code 1008', async () => {

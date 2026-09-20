@@ -17,7 +17,10 @@ export interface ObservabilityDeps {
 }
 
 /** The HTTP route table — mirrors the realtime dispatch table's shape. */
-export function createHttpRoutes(deps: ControllerDeps, observability: ObservabilityDeps = {}): Router {
+export function createHttpRoutes(
+  deps: ControllerDeps,
+  observability: ObservabilityDeps = {},
+): Router {
   const router = Router();
   const health = createHealthController();
   const sessions = createSessionController(deps);

@@ -68,7 +68,14 @@ function main(): void {
   const hub = new BroadcastHub({ chaos });
   const controllerDeps: ControllerDeps = { registry, hub, auditLog, clock, metrics };
 
-  const app = createApp({ corsOrigin: env.CORS_ORIGIN, logger, controllerDeps, chaos, metrics, convergenceTracker });
+  const app = createApp({
+    corsOrigin: env.CORS_ORIGIN,
+    logger,
+    controllerDeps,
+    chaos,
+    metrics,
+    convergenceTracker,
+  });
   const server = createServer({ app, controllerDeps, logger });
 
   const tickScheduler = new TickScheduler({

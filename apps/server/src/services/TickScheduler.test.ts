@@ -83,7 +83,63 @@ describe('TickScheduler.tick', () => {
     expect(p1.sent).toHaveLength(0);
   });
 
-  it('clears dirty state after flushing, so the same change is not sent twice', () => {
+  it('clears dirty state after flushing, so a further tick never re-derives the same change from Session itself', () => {
+    const { registry, hub, scheduler } = setUp();
+    registry.save(addParticipant(registry.getOrCreate(sid('s1')), pid('p1'), 0));
+    const p1 = fakeSocket();
+    hub.register({ pid: pid('p1'), sid: sid('s1'), socket: p1.socket });
+
+    registry.save(
+      applyEvent(registry.get(sid('s1'))!, {
+        v: 1,
+        t: 'cursor',
+        sid: sid('s1'),
+        pid: pid('p1'),
+        seq: 1,
+        ts: 0,
+        x: 0.5,
+        y: 100,
+      }).state,
+    );
+
+    scheduler.tick();
+    expect(registry.get(sid('s1'))!.dirty.size).toBe(0); // cleared — nothing left to re-derive a patch from
+  });
+
+  it('settles by re-confirming the last-known patch for a short window after a session goes quiet, then stops entirely', () => {
+    const { registry, hub, scheduler, clock } = setUp();
+    registry.save(addParticipant(registry.getOrCreate(sid('s1')), pid('p1'), 0));
+    const p1 = fakeSocket();
+    hub.register({ pid: pid('p1'), sid: sid('s1'), socket: p1.socket });
+
+    registry.save(
+      applyEvent(registry.get(sid('s1'))!, {
+        v: 1,
+        t: 'cursor',
+        sid: sid('s1'),
+        pid: pid('p1'),
+        seq: 1,
+        ts: 0,
+        x: 0.5,
+        y: 100,
+      }).state,
+    );
+
+    scheduler.tick(); // the real, dirty-triggered patch
+    expect(p1.sent).toHaveLength(1);
+
+    scheduler.tick(); // nothing newly dirty, but still within the settle window -> a redundant resend
+    expect(p1.sent).toHaveLength(2);
+    expect((JSON.parse(p1.sent[1]!) as PatchMessage).patches).toEqual([
+      { pid: pid('p1'), x: 0.5, y: 100 },
+    ]);
+
+    clock.advance(10_000); // well past PATCH_SETTLE_WINDOW_MS
+    scheduler.tick();
+    expect(p1.sent).toHaveLength(2); // settle window elapsed — fully quiet now
+  });
+
+  it('a settle resend still carries a fresh, strictly-higher seq than the patch it repeats', () => {
     const { registry, hub, scheduler } = setUp();
     registry.save(addParticipant(registry.getOrCreate(sid('s1')), pid('p1'), 0));
     const p1 = fakeSocket();
@@ -105,7 +161,8 @@ describe('TickScheduler.tick', () => {
     scheduler.tick();
     scheduler.tick();
 
-    expect(p1.sent).toHaveLength(1);
+    const [first, second] = p1.sent.map((raw) => JSON.parse(raw) as PatchMessage);
+    expect(second!.seq).toBeGreaterThan(first!.seq);
   });
 
   it('advances the broadcast seq on every tick, even a no-op one', () => {
