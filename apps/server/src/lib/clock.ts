@@ -16,10 +16,14 @@ export const systemClock: Clock = {
 };
 
 /**
- * A controllable clock for tests: `advance()` moves time forward without
- * waiting for it, and `now()` never drifts from what the test expects.
+ * A controllable clock for tests: {@link advance} moves time forward
+ * relative to wherever it already is, without waiting for it; `set`
+ * jumps to an absolute value. `now()` never drifts from what the test
+ * expects either way.
  */
-export function createFakeClock(startAt = 0): Clock & { advance(ms: number): void; set(ms: number): void } {
+export function createFakeClock(
+  startAt = 0,
+): Clock & { advance(ms: number): void; set(ms: number): void } {
   let current = startAt;
   return {
     now: () => current,

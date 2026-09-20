@@ -47,7 +47,12 @@ describe('AuditLog', () => {
     const log = new AuditLog();
     log.record(record({ eventId: 'evt-1' }));
     log.record(record({ eventId: 'evt-2' }));
-    expect(log.all().map((r) => r.eventId).sort()).toEqual(['evt-1', 'evt-2']);
+    expect(
+      log
+        .all()
+        .map((r) => r.eventId)
+        .sort(),
+    ).toEqual(['evt-1', 'evt-2']);
   });
 
   it('forSession filters to only that session', () => {

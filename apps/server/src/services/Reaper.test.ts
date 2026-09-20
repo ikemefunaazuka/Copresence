@@ -15,7 +15,11 @@ const pid = (raw: string): ParticipantId => raw as ParticipantId;
 
 function fakeSocket(): { socket: WebSocket; sent: string[] } {
   const sent: string[] = [];
-  const socket = { readyState: 1, OPEN: 1, send: (data: string) => sent.push(data) } as unknown as WebSocket;
+  const socket = {
+    readyState: 1,
+    OPEN: 1,
+    send: (data: string) => sent.push(data),
+  } as unknown as WebSocket;
   return { socket, sent };
 }
 
@@ -37,7 +41,11 @@ describe('Reaper.sweep', () => {
 
     const records = auditLog.forSession(sid('s1'));
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ pid: pid('stale'), kind: 'session.end', source: 'inferred' });
+    expect(records[0]).toMatchObject({
+      pid: pid('stale'),
+      kind: 'session.end',
+      source: 'inferred',
+    });
   });
 
   it('broadcasts leave to remaining participants and unregisters the reaped one from the hub', () => {

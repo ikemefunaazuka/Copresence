@@ -53,8 +53,12 @@ export async function startTestServer(
     app,
     controllerDeps,
     logger,
-    ...(options.heartbeatIntervalMs !== undefined ? { heartbeatIntervalMs: options.heartbeatIntervalMs } : {}),
-    ...(options.heartbeatMaxMissed !== undefined ? { heartbeatMaxMissed: options.heartbeatMaxMissed } : {}),
+    ...(options.heartbeatIntervalMs !== undefined
+      ? { heartbeatIntervalMs: options.heartbeatIntervalMs }
+      : {}),
+    ...(options.heartbeatMaxMissed !== undefined
+      ? { heartbeatMaxMissed: options.heartbeatMaxMissed }
+      : {}),
   });
 
   const tickScheduler = new TickScheduler({
@@ -118,7 +122,10 @@ function rawDataToString(data: RawData): string {
 export async function connectTestClient(port: number, sid: string): Promise<TestClient> {
   const socket = new WebSocket(`ws://127.0.0.1:${port}/ws?sid=${encodeURIComponent(sid)}`);
   const messages: OutboundMessage[] = [];
-  const waiters: { predicate: (msg: OutboundMessage) => boolean; resolve: (msg: OutboundMessage) => void }[] = [];
+  const waiters: {
+    predicate: (msg: OutboundMessage) => boolean;
+    resolve: (msg: OutboundMessage) => void;
+  }[] = [];
 
   socket.on('message', (data) => {
     const parsed = JSON.parse(rawDataToString(data)) as OutboundMessage;
@@ -149,7 +156,9 @@ export async function connectTestClient(port: number, sid: string): Promise<Test
 
       return new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => {
-          const index = waiters.findIndex((w) => w.resolve === (resolve as (msg: OutboundMessage) => void));
+          const index = waiters.findIndex(
+            (w) => w.resolve === (resolve as (msg: OutboundMessage) => void),
+          );
           if (index >= 0) waiters.splice(index, 1);
           reject(new Error(`timed out after ${timeoutMs}ms waiting for a matching message`));
         }, timeoutMs);

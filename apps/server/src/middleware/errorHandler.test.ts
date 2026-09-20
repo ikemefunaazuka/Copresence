@@ -1,11 +1,17 @@
-import { describe, expect, it } from 'vitest';
-import type { Request, Response } from 'express';
-
 import { Writable } from 'node:stream';
+
+import type { Request, Response } from 'express';
+import { describe, expect, it, vi } from 'vitest';
+
 import { createLogger } from '../lib/logger.js';
+
 import { createErrorHandler } from './errorHandler.js';
 
-function fakeResponse(headersSent = false): { res: Response; status: () => number | undefined; body: () => unknown } {
+function fakeResponse(headersSent = false): {
+  res: Response;
+  status: () => number | undefined;
+  body: () => unknown;
+} {
   let statusCode: number | undefined;
   let jsonBody: unknown;
   const res = {
@@ -29,7 +35,7 @@ describe('errorHandler', () => {
     const { res, status, body } = fakeResponse();
     const req = { path: '/boom', method: 'GET' } as Request;
 
-    expect(() => handler(new Error('something broke'), req, res, () => {})).not.toThrow();
+    expect(() => handler(new Error('something broke'), req, res, vi.fn())).not.toThrow();
 
     expect(status()).toBe(500);
     expect(body()).toEqual({ error: 'internal server error' });
@@ -41,7 +47,7 @@ describe('errorHandler', () => {
     const { res, status } = fakeResponse(true);
     const req = { path: '/boom', method: 'GET' } as Request;
 
-    handler(new Error('too late'), req, res, () => {});
+    handler(new Error('too late'), req, res, vi.fn());
 
     expect(status()).toBeUndefined();
   });

@@ -40,7 +40,12 @@ describe('SessionRegistry', () => {
     const registry = new SessionRegistry(createFakeClock());
     registry.getOrCreate(sid('s1'));
     registry.getOrCreate(sid('s2'));
-    expect(registry.all().map((s) => s.sid).sort()).toEqual(['s1', 's2']);
+    expect(
+      registry
+        .all()
+        .map((s) => s.sid)
+        .sort(),
+    ).toEqual(['s1', 's2']);
   });
 
   describe('reapStale', () => {

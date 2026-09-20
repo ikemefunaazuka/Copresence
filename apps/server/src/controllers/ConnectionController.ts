@@ -35,22 +35,24 @@ export function handleHello(ctx: ConnectionContext, msg: HelloMessage, deps: Con
   deps.hub.sendTo(msg.pid, toWelcome(next, msg.pid, seq, deps.clock.now()));
 
   if (!wasAlreadyPresent) {
-    const participant = next.participants.get(msg.pid);
-    if (participant) {
-      const joinMessage = {
-        v: PROTOCOL_VERSION,
-        t: 'join' as const,
-        sid: ctx.sid,
-        seq,
-        ts: deps.clock.now(),
-        participant: {
-          pid: participant.pid,
-          color: participant.color,
-          lastSeenAt: participant.lastSeenAt,
-        },
-      };
-      deps.hub.broadcastToSession(ctx.sid, joinMessage, msg.pid);
-    }
+    // applyEvent's 'hello' case unconditionally leaves this participant
+    // present in `next` (addParticipant then touchAndSetViewport, both
+    // total) — this lookup cannot miss, so there is no "not found" branch
+    // to handle here.
+    const participant = next.participants.get(msg.pid)!;
+    const joinMessage = {
+      v: PROTOCOL_VERSION,
+      t: 'join' as const,
+      sid: ctx.sid,
+      seq,
+      ts: deps.clock.now(),
+      participant: {
+        pid: participant.pid,
+        color: participant.color,
+        lastSeenAt: participant.lastSeenAt,
+      },
+    };
+    deps.hub.broadcastToSession(ctx.sid, joinMessage, msg.pid);
   }
 }
 
@@ -67,10 +69,14 @@ export function handleBye(ctx: ConnectionContext, msg: ByeMessage, deps: Control
   removeFromSession(ctx, msg.pid, deps);
 }
 
-/** Application-level latency ping — distinct from `ws`'s raw protocol-level heartbeat frames (see server.ts). */
+/**
+ * Application-level latency ping — distinct from `ws`'s raw protocol-level
+ * heartbeat frames (see server.ts). `ctx.pid` is guaranteed set here: the
+ * realtime router never dispatches a non-`hello` message before the
+ * handshake completes (same guarantee handleBye's doc comment relies on).
+ */
 export function handlePing(ctx: ConnectionContext, msg: PingMessage, deps: ControllerDeps): void {
-  if (!ctx.pid) return;
-  deps.hub.sendTo(ctx.pid, {
+  deps.hub.sendTo(ctx.pid!, {
     v: PROTOCOL_VERSION,
     t: 'pong',
     sid: ctx.sid,
@@ -106,12 +112,17 @@ export function handleDisconnect(ctx: ConnectionContext, deps: ControllerDeps): 
   removeFromSession(ctx, pid, deps);
 }
 
+/**
+ * Both call sites already guarantee a real `pid`: `handleBye` passes a
+ * schema-validated message field, `handleDisconnect` passes `ctx.pid`
+ * only after its own `if (!ctx.pid) return` guard — so this never needs
+ * to handle a missing one itself.
+ */
 function removeFromSession(
   ctx: ConnectionContext,
-  pid: ConnectionContext['pid'],
+  pid: NonNullable<ConnectionContext['pid']>,
   deps: ControllerDeps,
 ): void {
-  if (!pid) return;
   const session = deps.registry.get(ctx.sid);
   deps.hub.unregister(pid);
   if (!session?.participants.has(pid)) return;

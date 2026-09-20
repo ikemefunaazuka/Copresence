@@ -31,14 +31,40 @@ describe('toWelcome', () => {
     expect('scrollX' in snapshot).toBe(false);
   });
 
-  it('includes cursor/scroll fields once presence exists', () => {
+  it('includes cursor fields once cursor presence exists', () => {
     let session = addParticipant(createSession(sid('s1'), 0), pid('a'), 0);
     session = applyEvent(session, {
-      v: 1, t: 'cursor', sid: sid('s1'), pid: pid('a'), seq: 1, ts: 0, x: 0.5, y: 200,
+      v: 1,
+      t: 'cursor',
+      sid: sid('s1'),
+      pid: pid('a'),
+      seq: 1,
+      ts: 0,
+      x: 0.5,
+      y: 200,
     }).state;
 
     const welcome = toWelcome(session, pid('a'), 1, 1_000);
     expect(welcome.participants[0]).toMatchObject({ x: 0.5, y: 200 });
+  });
+
+  it('includes scroll fields once scroll presence exists, independent of cursor', () => {
+    let session = addParticipant(createSession(sid('s1'), 0), pid('a'), 0);
+    session = applyEvent(session, {
+      v: 1,
+      t: 'scroll',
+      sid: sid('s1'),
+      pid: pid('a'),
+      seq: 1,
+      ts: 0,
+      scrollX: 0,
+      scrollY: 900,
+    }).state;
+
+    const welcome = toWelcome(session, pid('a'), 1, 1_000);
+    const snapshot = welcome.participants[0]!;
+    expect(snapshot).toMatchObject({ scrollX: 0, scrollY: 900 });
+    expect('x' in snapshot).toBe(false);
   });
 });
 
@@ -64,7 +90,14 @@ describe('toPatch', () => {
     let session = addParticipant(createSession(sid('s1'), 0), pid('a'), 0);
     session = addParticipant(session, pid('b'), 0);
     session = applyEvent(session, {
-      v: 1, t: 'cursor', sid: sid('s1'), pid: pid('a'), seq: 1, ts: 0, x: 0.5, y: 200,
+      v: 1,
+      t: 'cursor',
+      sid: sid('s1'),
+      pid: pid('a'),
+      seq: 1,
+      ts: 0,
+      x: 0.5,
+      y: 200,
     }).state;
 
     const patch = toPatch(session, 1, 1_000);
@@ -75,7 +108,14 @@ describe('toPatch', () => {
   it('reports a scroll-only patch without cursor fields when only scroll is dirty', () => {
     let session = addParticipant(createSession(sid('s1'), 0), pid('a'), 0);
     session = applyEvent(session, {
-      v: 1, t: 'scroll', sid: sid('s1'), pid: pid('a'), seq: 1, ts: 0, scrollX: 0, scrollY: 400,
+      v: 1,
+      t: 'scroll',
+      sid: sid('s1'),
+      pid: pid('a'),
+      seq: 1,
+      ts: 0,
+      scrollX: 0,
+      scrollY: 400,
     }).state;
 
     const patch = toPatch(session, 1, 1_000);
@@ -101,6 +141,10 @@ describe('toSessionDTO', () => {
     expect(dto.sid).toBe('s1');
     expect(dto.createdAt).toBe(500);
     expect(dto.participantCount).toBe(1);
-    expect(dto.participants[0]).toEqual({ pid: pid('a'), color: expect.any(String) as string, lastSeenAt: 500 });
+    expect(dto.participants[0]).toEqual({
+      pid: pid('a'),
+      color: expect.any(String) as string,
+      lastSeenAt: 500,
+    });
   });
 });

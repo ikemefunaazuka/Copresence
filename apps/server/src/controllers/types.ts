@@ -31,7 +31,11 @@ export interface ConnectionContext {
   leftExplicitly: boolean;
 }
 
-export function createConnectionContext(socket: WebSocket, sid: SessionId, now: number): ConnectionContext {
+export function createConnectionContext(
+  socket: WebSocket,
+  sid: SessionId,
+  now: number,
+): ConnectionContext {
   return {
     socket,
     sid,

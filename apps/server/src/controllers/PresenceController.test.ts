@@ -1,12 +1,13 @@
-import { describe, expect, it } from 'vitest';
-
 import type { ParticipantId, SessionId } from '@copresence/protocol';
 import { PROTOCOL_VERSION } from '@copresence/protocol';
+import { describe, expect, it } from 'vitest';
+
 import { createFakeClock } from '../lib/clock.js';
 import { addParticipant } from '../models/Session.js';
 import { AuditLog } from '../services/AuditLog.js';
 import { BroadcastHub } from '../services/BroadcastHub.js';
 import { SessionRegistry } from '../services/SessionRegistry.js';
+
 import { handleCursor, handleScroll } from './PresenceController.js';
 import type { ConnectionContext, ControllerDeps } from './types.js';
 import { createConnectionContext } from './types.js';
@@ -30,7 +31,20 @@ describe('handleCursor', () => {
   it('is a total no-op when the session does not exist yet', () => {
     const { deps, ctx } = setUp();
     expect(() =>
-      handleCursor(ctx, { v: PROTOCOL_VERSION, t: 'cursor', sid: sid('s1'), pid: pid('p1'), seq: 1, ts: 0, x: 0.5, y: 1 }, deps),
+      handleCursor(
+        ctx,
+        {
+          v: PROTOCOL_VERSION,
+          t: 'cursor',
+          sid: sid('s1'),
+          pid: pid('p1'),
+          seq: 1,
+          ts: 0,
+          x: 0.5,
+          y: 1,
+        },
+        deps,
+      ),
     ).not.toThrow();
     expect(deps.registry.get(sid('s1'))).toBeUndefined();
   });
@@ -39,9 +53,25 @@ describe('handleCursor', () => {
     const { deps, ctx } = setUp();
     deps.registry.save(addParticipant(deps.registry.getOrCreate(sid('s1')), pid('p1'), 0));
 
-    handleCursor(ctx, { v: PROTOCOL_VERSION, t: 'cursor', sid: sid('s1'), pid: pid('p1'), seq: 1, ts: 0, x: 0.5, y: 1 }, deps);
+    handleCursor(
+      ctx,
+      {
+        v: PROTOCOL_VERSION,
+        t: 'cursor',
+        sid: sid('s1'),
+        pid: pid('p1'),
+        seq: 1,
+        ts: 0,
+        x: 0.5,
+        y: 1,
+      },
+      deps,
+    );
 
-    expect(deps.registry.get(sid('s1'))?.participants.get(pid('p1'))?.presence.cursor).toEqual({ x: 0.5, y: 1 });
+    expect(deps.registry.get(sid('s1'))?.participants.get(pid('p1'))?.presence.cursor).toEqual({
+      x: 0.5,
+      y: 1,
+    });
   });
 });
 
@@ -51,7 +81,16 @@ describe('handleScroll', () => {
     expect(() =>
       handleScroll(
         ctx,
-        { v: PROTOCOL_VERSION, t: 'scroll', sid: sid('s1'), pid: pid('p1'), seq: 1, ts: 0, scrollX: 0, scrollY: 1 },
+        {
+          v: PROTOCOL_VERSION,
+          t: 'scroll',
+          sid: sid('s1'),
+          pid: pid('p1'),
+          seq: 1,
+          ts: 0,
+          scrollX: 0,
+          scrollY: 1,
+        },
         deps,
       ),
     ).not.toThrow();
@@ -64,10 +103,22 @@ describe('handleScroll', () => {
 
     handleScroll(
       ctx,
-      { v: PROTOCOL_VERSION, t: 'scroll', sid: sid('s1'), pid: pid('p1'), seq: 1, ts: 0, scrollX: 0, scrollY: 1 },
+      {
+        v: PROTOCOL_VERSION,
+        t: 'scroll',
+        sid: sid('s1'),
+        pid: pid('p1'),
+        seq: 1,
+        ts: 0,
+        scrollX: 0,
+        scrollY: 1,
+      },
       deps,
     );
 
-    expect(deps.registry.get(sid('s1'))?.participants.get(pid('p1'))?.presence.scroll).toEqual({ x: 0, y: 1 });
+    expect(deps.registry.get(sid('s1'))?.participants.get(pid('p1'))?.presence.scroll).toEqual({
+      x: 0,
+      y: 1,
+    });
   });
 });

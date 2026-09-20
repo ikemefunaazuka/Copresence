@@ -1,4 +1,3 @@
-
 import type { ParticipantId, PongMessage, SessionId } from '@copresence/protocol';
 import { PROTOCOL_VERSION } from '@copresence/protocol';
 import { describe, expect, it } from 'vitest';

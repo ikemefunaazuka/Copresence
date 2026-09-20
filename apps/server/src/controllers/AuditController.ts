@@ -12,7 +12,11 @@ import type { ConnectionContext, ControllerDeps } from './types.js';
  * canonical case being a message resent after a dropped `ack`) is simply
  * recorded as a no-op.
  */
-export function handleAuditMessage(ctx: ConnectionContext, msg: AuditMessage, deps: ControllerDeps): void {
+export function handleAuditMessage(
+  ctx: ConnectionContext,
+  msg: AuditMessage,
+  deps: ControllerDeps,
+): void {
   deps.auditLog.record({
     eventId: msg.eventId,
     sid: ctx.sid,

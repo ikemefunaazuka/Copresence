@@ -15,7 +15,11 @@ const pid = (raw: string): ParticipantId => raw as ParticipantId;
 
 function fakeSocket(): { socket: WebSocket; sent: string[] } {
   const sent: string[] = [];
-  const socket = { readyState: 1, OPEN: 1, send: (data: string) => sent.push(data) } as unknown as WebSocket;
+  const socket = {
+    readyState: 1,
+    OPEN: 1,
+    send: (data: string) => sent.push(data),
+  } as unknown as WebSocket;
   return { socket, sent };
 }
 
@@ -44,9 +48,18 @@ describe('TickScheduler.tick', () => {
     hub.register({ pid: pid('p2'), sid: sid('s1'), socket: p2.socket });
 
     // p1 moves, p2 does not.
-    registry.save(applyEvent(registry.get(sid('s1'))!, {
-      v: 1, t: 'cursor', sid: sid('s1'), pid: pid('p1'), seq: 1, ts: 0, x: 0.5, y: 100,
-    }).state);
+    registry.save(
+      applyEvent(registry.get(sid('s1'))!, {
+        v: 1,
+        t: 'cursor',
+        sid: sid('s1'),
+        pid: pid('p1'),
+        seq: 1,
+        ts: 0,
+        x: 0.5,
+        y: 100,
+      }).state,
+    );
 
     scheduler.tick();
 
@@ -75,9 +88,18 @@ describe('TickScheduler.tick', () => {
     const p1 = fakeSocket();
     hub.register({ pid: pid('p1'), sid: sid('s1'), socket: p1.socket });
 
-    registry.save(applyEvent(registry.get(sid('s1'))!, {
-      v: 1, t: 'cursor', sid: sid('s1'), pid: pid('p1'), seq: 1, ts: 0, x: 0.5, y: 100,
-    }).state);
+    registry.save(
+      applyEvent(registry.get(sid('s1'))!, {
+        v: 1,
+        t: 'cursor',
+        sid: sid('s1'),
+        pid: pid('p1'),
+        seq: 1,
+        ts: 0,
+        x: 0.5,
+        y: 100,
+      }).state,
+    );
 
     scheduler.tick();
     scheduler.tick();
@@ -92,9 +114,18 @@ describe('TickScheduler.tick', () => {
     hub.register({ pid: pid('p1'), sid: sid('s1'), socket: p1.socket });
 
     scheduler.tick(); // no-op, seq -> 1 internally
-    registry.save(applyEvent(registry.get(sid('s1'))!, {
-      v: 1, t: 'cursor', sid: sid('s1'), pid: pid('p1'), seq: 1, ts: 0, x: 0.5, y: 100,
-    }).state);
+    registry.save(
+      applyEvent(registry.get(sid('s1'))!, {
+        v: 1,
+        t: 'cursor',
+        sid: sid('s1'),
+        pid: pid('p1'),
+        seq: 1,
+        ts: 0,
+        x: 0.5,
+        y: 100,
+      }).state,
+    );
     scheduler.tick(); // seq -> 2, this is the one that actually sends
 
     const patch = JSON.parse(p1.sent[0]!) as PatchMessage;

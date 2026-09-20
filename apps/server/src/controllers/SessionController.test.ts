@@ -1,12 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import type { Request, Response } from 'express';
-
 import type { ParticipantId, SessionId } from '@copresence/protocol';
+import type { Request, Response } from 'express';
+import { describe, expect, it } from 'vitest';
+
 import { createFakeClock } from '../lib/clock.js';
 import { addParticipant } from '../models/Session.js';
 import { AuditLog } from '../services/AuditLog.js';
 import { BroadcastHub } from '../services/BroadcastHub.js';
 import { SessionRegistry } from '../services/SessionRegistry.js';
+
 import { createSessionController } from './SessionController.js';
 import type { ControllerDeps } from './types.js';
 
@@ -74,7 +75,11 @@ describe('SessionController', () => {
   it('getBySessionId returns 200 with the DTO for a known session', () => {
     const controllerDeps = deps();
     controllerDeps.registry.save(
-      addParticipant(controllerDeps.registry.getOrCreate('s1' as SessionId), 'p1' as ParticipantId, 0),
+      addParticipant(
+        controllerDeps.registry.getOrCreate('s1' as SessionId),
+        'p1' as ParticipantId,
+        0,
+      ),
     );
     const controller = createSessionController(controllerDeps);
     const { res, status, body } = fakeResponse();

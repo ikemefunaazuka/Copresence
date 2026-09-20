@@ -8,11 +8,16 @@ import type {
   SessionId,
   WelcomeMessage,
 } from '@copresence/protocol';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
 import type { TestClient, TestServer } from './harness.js';
-import { connectTestClient, freshParticipantId, freshSessionId, startTestServer } from './harness.js';
+import {
+  connectTestClient,
+  freshParticipantId,
+  freshSessionId,
+  startTestServer,
+} from './harness.js';
 
 /**
  * Real `ws` clients against a real, fully composed server on an
@@ -91,6 +96,35 @@ describe('realtime integration', () => {
     expect(join.participant.pid).toBe(bPid);
   });
 
+  it('a repeat hello from an already-joined participant (e.g. a resize) sends a fresh welcome but does not re-announce a join', async () => {
+    const sid = freshSessionId();
+    const pidA = freshParticipantId();
+    const a = await joinSession(testServer.port, sid, pidA);
+    const b = await joinSession(testServer.port, sid, freshParticipantId());
+    clients.push(a, b);
+
+    a.send({
+      v: PROTOCOL_VERSION,
+      t: 'hello',
+      sid,
+      pid: pidA,
+      seq: 2,
+      ts: Date.now(),
+      docWidth: 2048,
+      docHeight: 4000,
+      dpr: 2,
+      visibilityState: 'visible',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30)); // let the second welcome/handling settle
+
+    expect(a.received().filter(isWelcome)).toHaveLength(2); // the original join's, plus this one
+    // b joined after a, so it never received a `join` about a in the first
+    // place (it learned about a via its own welcome) — zero here, both
+    // before and after a's second hello, is exactly what proves no
+    // re-announcement happened.
+    expect(b.received().filter(isJoin)).toHaveLength(0);
+  });
+
   it('two-party mirroring: a cursor move from A is coalesced into a patch B receives', async () => {
     const sid = freshSessionId();
     const pidA = freshParticipantId();
@@ -98,7 +132,16 @@ describe('realtime integration', () => {
     const b = await joinSession(testServer.port, sid, freshParticipantId());
     clients.push(a, b);
 
-    a.send({ v: PROTOCOL_VERSION, t: 'cursor', sid, pid: pidA, seq: 2, ts: Date.now(), x: 0.42, y: 314 });
+    a.send({
+      v: PROTOCOL_VERSION,
+      t: 'cursor',
+      sid,
+      pid: pidA,
+      seq: 2,
+      ts: Date.now(),
+      x: 0.42,
+      y: 314,
+    });
 
     const patch = await b.waitFor(isPatch);
     expect(patch.patches).toContainEqual({ pid: pidA, x: 0.42, y: 314 });
@@ -142,7 +185,16 @@ describe('realtime integration', () => {
     const pidA = freshParticipantId();
     const a = await joinSession(testServer.port, sid, pidA);
     clients.push(a);
-    a.send({ v: PROTOCOL_VERSION, t: 'cursor', sid, pid: pidA, seq: 2, ts: Date.now(), x: 0.7, y: 70 });
+    a.send({
+      v: PROTOCOL_VERSION,
+      t: 'cursor',
+      sid,
+      pid: pidA,
+      seq: 2,
+      ts: Date.now(),
+      x: 0.7,
+      y: 70,
+    });
     await new Promise((resolve) => setTimeout(resolve, 100)); // let a tick flush it into presence
 
     const reconnectPid = freshParticipantId();
@@ -188,7 +240,18 @@ describe('realtime integration', () => {
     clients.push(client);
 
     const errorSeen = client.waitFor(isError);
-    client.socket.send(JSON.stringify({ v: PROTOCOL_VERSION, t: 'cursor', sid, pid: 'p', seq: 1, ts: 1, x: 5, y: 0 }));
+    client.socket.send(
+      JSON.stringify({
+        v: PROTOCOL_VERSION,
+        t: 'cursor',
+        sid,
+        pid: 'p',
+        seq: 1,
+        ts: 1,
+        x: 5,
+        y: 0,
+      }),
+    );
     const error = await errorSeen;
     expect(error.code).toBe('validation-failed');
   });
@@ -231,10 +294,18 @@ describe('realtime integration', () => {
           adversarial.push(JSON.stringify(Array.from({ length: 50 }, (_, n) => n))); // valid JSON, wrong shape
           break;
         case 4:
-          adversarial.push(JSON.stringify({ v: 'not-a-number', t: 'ping', sid, pid: 'x', seq: 1, ts: 1 }));
+          adversarial.push(
+            JSON.stringify({ v: 'not-a-number', t: 'ping', sid, pid: 'x', seq: 1, ts: 1 }),
+          );
           break;
         default:
-          adversarial.push('{"v":1,"t":"cursor","sid":"' + sid + '","pid":"x","seq":1,"ts":1,"x":' + Number.MAX_SAFE_INTEGER + ',"y":0}');
+          adversarial.push(
+            '{"v":1,"t":"cursor","sid":"' +
+              sid +
+              '","pid":"x","seq":1,"ts":1,"x":' +
+              Number.MAX_SAFE_INTEGER +
+              ',"y":0}',
+          );
       }
     }
 
@@ -244,8 +315,17 @@ describe('realtime integration', () => {
 
     // Still alive and responsive: a legitimate message right after gets a
     // real reply, proving the connection (and the process) survived.
-    const pongSeen = client.waitFor((msg): msg is OutboundMessage & { t: 'pong' } => msg.t === 'pong');
-    client.send({ v: PROTOCOL_VERSION, t: 'ping', sid, pid: client.received().find(isWelcome)!.pid, seq: 9999, ts: Date.now() });
+    const pongSeen = client.waitFor(
+      (msg): msg is OutboundMessage & { t: 'pong' } => msg.t === 'pong',
+    );
+    client.send({
+      v: PROTOCOL_VERSION,
+      t: 'ping',
+      sid,
+      pid: client.received().find(isWelcome)!.pid,
+      seq: 9999,
+      ts: Date.now(),
+    });
     await pongSeen;
   });
 
@@ -258,8 +338,12 @@ describe('realtime integration', () => {
     const a = await joinSession(dedicated.port, sid, freshParticipantId());
     const b = await joinSession(dedicated.port, sid, freshParticipantId());
 
-    const aClosed = new Promise<number>((resolve) => a.socket.once('close', (code) => resolve(code)));
-    const bClosed = new Promise<number>((resolve) => b.socket.once('close', (code) => resolve(code)));
+    const aClosed = new Promise<number>((resolve) =>
+      a.socket.once('close', (code) => resolve(code)),
+    );
+    const bClosed = new Promise<number>((resolve) =>
+      b.socket.once('close', (code) => resolve(code)),
+    );
 
     const start = Date.now();
     await dedicated.close(); // also closes both sockets above, with code 1001
@@ -278,7 +362,16 @@ describe('realtime integration', () => {
     const b = await joinSession(testServer.port, sid, freshParticipantId());
     clients.push(a, b);
 
-    a.send({ v: PROTOCOL_VERSION, t: 'scroll', sid, pid: pidA, seq: 2, ts: Date.now(), scrollX: 0, scrollY: 900 });
+    a.send({
+      v: PROTOCOL_VERSION,
+      t: 'scroll',
+      sid,
+      pid: pidA,
+      seq: 2,
+      ts: Date.now(),
+      scrollX: 0,
+      scrollY: 900,
+    });
 
     const patch = await b.waitFor(isPatch);
     expect(patch.patches).toContainEqual({ pid: pidA, scrollX: 0, scrollY: 900 });
@@ -306,16 +399,46 @@ describe('realtime integration', () => {
     expect(record).toMatchObject({ kind: 'visibility.change', source: 'client', pid });
   });
 
+  it('a session.end audit message records its reason in the detail field', async () => {
+    const sid = freshSessionId();
+    const pid = freshParticipantId();
+    const client = await joinSession(testServer.port, sid, pid);
+    clients.push(client);
+
+    client.send({
+      v: PROTOCOL_VERSION,
+      t: 'session.end',
+      sid,
+      pid,
+      seq: 2,
+      ts: Date.now(),
+      eventId: 'evt-session-end-1',
+      reason: 'navigate',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    const record = testServer.auditLog.get('evt-session-end-1');
+    expect(record).toMatchObject({
+      kind: 'session.end',
+      source: 'client',
+      detail: { reason: 'navigate' },
+    });
+  });
+
   it('ack is accepted and discarded without error — no reply, connection stays healthy', async () => {
     const sid = freshSessionId();
     const pid = freshParticipantId();
     const client = await joinSession(testServer.port, sid, pid);
     clients.push(client);
 
-    expect(() => client.send({ v: PROTOCOL_VERSION, t: 'ack', sid, pid, seq: 2, ts: Date.now(), acked: 1 })).not.toThrow();
+    expect(() =>
+      client.send({ v: PROTOCOL_VERSION, t: 'ack', sid, pid, seq: 2, ts: Date.now(), acked: 1 }),
+    ).not.toThrow();
 
     // Still responsive right after.
-    const pongSeen = client.waitFor((msg): msg is OutboundMessage & { t: 'pong' } => msg.t === 'pong');
+    const pongSeen = client.waitFor(
+      (msg): msg is OutboundMessage & { t: 'pong' } => msg.t === 'pong',
+    );
     client.send({ v: PROTOCOL_VERSION, t: 'ping', sid, pid, seq: 3, ts: Date.now() });
     await pongSeen;
   });
@@ -350,7 +473,14 @@ describe('realtime integration', () => {
     clients.push(client);
 
     const errorSeen = client.waitFor(isError);
-    client.send({ v: PROTOCOL_VERSION, t: 'ping', sid, pid: freshParticipantId(), seq: 1, ts: Date.now() });
+    client.send({
+      v: PROTOCOL_VERSION,
+      t: 'ping',
+      sid,
+      pid: freshParticipantId(),
+      seq: 1,
+      ts: Date.now(),
+    });
     const error = await errorSeen;
     expect(error.code).toBe('unauthorized');
 
@@ -392,6 +522,44 @@ describe('realtime integration', () => {
     expect(error.code).toBe('unauthorized');
   });
 
+  it('a duplicate/stale seq is silently dropped at the router — no error, no effect', async () => {
+    const sid = freshSessionId();
+    const pidA = freshParticipantId();
+    const a = await joinSession(testServer.port, sid, pidA);
+    const b = await joinSession(testServer.port, sid, freshParticipantId());
+    clients.push(a, b);
+
+    a.send({
+      v: PROTOCOL_VERSION,
+      t: 'cursor',
+      sid,
+      pid: pidA,
+      seq: 2,
+      ts: Date.now(),
+      x: 0.1,
+      y: 1,
+    });
+    await b.waitFor(isPatch); // let the real value land first
+
+    // Same seq again, with a different position — must be dropped, not applied.
+    a.send({
+      v: PROTOCOL_VERSION,
+      t: 'cursor',
+      sid,
+      pid: pidA,
+      seq: 2,
+      ts: Date.now(),
+      x: 0.9,
+      y: 999,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 60)); // give a tick the chance to fire if it were going to
+
+    const errorsAfterDuplicate = a.received().filter(isError);
+    expect(errorsAfterDuplicate).toEqual([]);
+    const patchesAfterFirst = b.received().filter(isPatch);
+    expect(patchesAfterFirst).toHaveLength(1); // only the first cursor move ever produced a patch
+  });
+
   it('connecting without a sid query parameter is rejected at the upgrade, with close code 1008', async () => {
     const socket = new WebSocket(`ws://127.0.0.1:${testServer.port}/ws`);
     const code = await new Promise<number>((resolve) => socket.once('close', resolve));
@@ -405,7 +573,7 @@ describe('realtime integration', () => {
     // A real client always answers a protocol-level ping automatically (the
     // underlying socket, not application code, handles this) — to simulate
     // an unresponsive peer, stop it from doing so.
-    client.socket.pong = () => {};
+    client.socket.pong = vi.fn();
 
     const terminated = new Promise<void>((resolve) => client.socket.once('close', () => resolve()));
     await terminated;

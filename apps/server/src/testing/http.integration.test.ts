@@ -40,7 +40,9 @@ describe('HTTP integration', () => {
   });
 
   it('GET /api/sessions/:sid finds a session created moments before', async () => {
-    const created = (await (await fetch(url('/api/sessions'), { method: 'POST' })).json()) as { sid: string };
+    const created = (await (await fetch(url('/api/sessions'), { method: 'POST' })).json()) as {
+      sid: string;
+    };
     const res = await fetch(url(`/api/sessions/${created.sid}`));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { sid: string };
@@ -53,7 +55,9 @@ describe('HTTP integration', () => {
   });
 
   it('repeatedly hitting POST /api/sessions past the rate limit gets throttled with 429', async () => {
-    const attempts = Array.from({ length: 130 }, () => fetch(url('/api/sessions'), { method: 'POST' }));
+    const attempts = Array.from({ length: 130 }, () =>
+      fetch(url('/api/sessions'), { method: 'POST' }),
+    );
     const results = await Promise.all(attempts);
     expect(results.some((r) => r.status === 429)).toBe(true);
   });

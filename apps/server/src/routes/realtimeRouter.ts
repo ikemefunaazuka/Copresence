@@ -18,8 +18,22 @@ import type { Logger } from '../lib/logger.js';
  * switch sprawled through the handler" is protecting against, whichever
  * JS construct expresses it.
  */
-function sendError(ctx: ConnectionContext, code: ErrorCode, detail: string, sid: ConnectionContext['sid'], now: number): void {
-  const message: ErrorMessage = { v: PROTOCOL_VERSION, t: 'error', sid, seq: 0, ts: now, code, detail };
+function sendError(
+  ctx: ConnectionContext,
+  code: ErrorCode,
+  detail: string,
+  sid: ConnectionContext['sid'],
+  now: number,
+): void {
+  const message: ErrorMessage = {
+    v: PROTOCOL_VERSION,
+    t: 'error',
+    sid,
+    seq: 0,
+    ts: now,
+    code,
+    detail,
+  };
   if (ctx.socket.readyState === ctx.socket.OPEN) {
     ctx.socket.send(JSON.stringify(message));
   }
@@ -70,7 +84,10 @@ export function handleRealtimeMessage(
   // Duplicate or out-of-order at the connection level: expected, not an
   // error (docs/adr/0009) — silently dropped, logged for visibility only.
   if (!ctx.sequenceGuard.accept(msg.seq)) {
-    logger.debug({ sid: ctx.sid, pid: msg.pid, seq: msg.seq, type: msg.t }, 'dropped stale/duplicate seq');
+    logger.debug(
+      { sid: ctx.sid, pid: msg.pid, seq: msg.seq, type: msg.t },
+      'dropped stale/duplicate seq',
+    );
     return;
   }
 
