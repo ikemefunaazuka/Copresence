@@ -1,9 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Phase 0 only wires this up and proves it works cold (e2e/smoke.spec.ts).
- * The real two-browser co-browsing suite, and the webServer block that
- * boots apps/server before it, land in Phase 4.
+ * Only wired up and proven to work cold so far (e2e/smoke.spec.ts). The
+ * real two-browser co-browsing suite, and the webServer block that boots
+ * apps/server before it, land once the client SDK and demo page exist.
  */
 export default defineConfig({
   testDir: './e2e',

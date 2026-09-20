@@ -6,11 +6,11 @@ import type { Session } from '../models/Session.js';
 
 /**
  * The storage port. In-memory (`SessionRegistry` below) is the only
- * implementation this repository builds — see MILESTONE §3 (Data &
- * Persistence) for why that is a considered choice, not an omission. The
- * interface is the point: a Redis-backed implementation for horizontal
- * scale-out is a new file behind this port, not a refactor of every
- * caller.
+ * implementation this repository builds — see the project plan's Data &
+ * Persistence section for why that is a considered choice, not an
+ * omission. The interface is the point: a Redis-backed implementation
+ * for horizontal scale-out is a new file behind this port, not a
+ * refactor of every caller.
  */
 export interface SessionStore {
   get(sid: SessionId): Session | undefined;
@@ -29,9 +29,9 @@ export interface ReapedParticipant {
 
 /**
  * `Map<SessionId, Session>` behind the `SessionStore` port, plus the TTL
- * reaper: `ws` does not detect a half-open TCP connection for you
- * (MILESTONE Phase 2), so a participant who vanished without a clean
- * `bye` would otherwise sit in the roster forever, a ghost cursor on
+ * reaper: `ws` does not detect a half-open TCP connection for you, so a
+ * participant who vanished without a clean `bye` would otherwise sit in
+ * the roster forever, a ghost cursor on
  * everyone else's screen. `reapStale` sweeps them out and reports exactly
  * who was removed and from where, so the caller can broadcast a `leave`
  * and write the inferred audit record — this class only owns the storage

@@ -4,10 +4,10 @@ import { z } from 'zod';
  * Every variable the server reads, in one place, validated at boot.
  *
  * A misconfigured server must not start and serve wrong behaviour quietly
- * (MILESTONE Phase 0) — so this schema is the single source of truth for
- * what "valid configuration" means, and .env.example documents it for
- * humans. If a variable is read anywhere via `process.env` directly instead
- * of through `loadEnv()`, that is a bug.
+ * — so this schema is the single source of truth for what "valid
+ * configuration" means, and .env.example documents it for humans. If a
+ * variable is read anywhere via `process.env` directly instead of
+ * through `loadEnv()`, that is a bug.
  */
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -18,7 +18,7 @@ const envSchema = z.object({
 
   CORS_ORIGIN: z.string().min(1).default('*'),
 
-  /** Silence before the heartbeat reaper drops a participant (Phase 2, 6). */
+  /** Silence before the heartbeat reaper drops a participant. */
   PARTICIPANT_TTL_MS: z.coerce.number().int().positive().default(15_000),
 
   /** Server broadcast tick rate — see docs/adr/0003. */

@@ -45,7 +45,7 @@ export function colorForParticipant(pid: ParticipantId): string {
 /**
  * `now` is always taken as a parameter, never read internally via
  * `Date.now()` — models/ stays pure and deterministic; the service layer
- * (Phase 2) owns the real clock.
+ * owns the real clock.
  */
 export function createParticipant(pid: ParticipantId, now: number): Participant {
   return {

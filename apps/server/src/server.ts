@@ -41,14 +41,14 @@ export interface CreateServerOptions {
 export interface CopresenceServer {
   readonly httpServer: HttpServer;
   readonly wss: WebSocketServer;
-  /** Closes every socket with 1001 ("going away"), then the WS and HTTP servers — MILESTONE Phase 2. */
+  /** Closes every socket with 1001 ("going away"), then the WS and HTTP servers. */
   close(): Promise<void>;
 }
 
 /**
  * Composition root for the transport layer: binds HTTP and WebSocket
  * traffic to one port, one `http.Server` underneath both — `ws` attaches
- * to it rather than listening separately (MILESTONE Phase 2).
+ * to it rather than listening separately.
  *
  * A connection joins a session via `?sid=<id>` on the WebSocket URL — the
  * same id `POST /api/sessions` returns and `GET /api/sessions/:sid`
@@ -101,7 +101,7 @@ export function createServer(options: CreateServerOptions): CopresenceServer {
   // `ws` does not detect a half-open TCP connection on its own — this is
   // the raw protocol-level ping/pong heartbeat that does, distinct from
   // the application-level `ping`/`pong` JSON messages ConnectionController
-  // handles for round-trip latency (MILESTONE Phase 2).
+  // handles for round-trip latency.
   const heartbeatTimer = setInterval(() => {
     for (const socket of wss.clients) {
       const missed = missedPongs.get(socket) ?? 0;

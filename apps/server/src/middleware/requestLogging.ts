@@ -9,7 +9,7 @@ import type { Logger } from '../lib/logger.js';
  * `pino-http` generates the id (via `generateId`, the same id generator
  * everything else in the server uses) and attaches a per-request child
  * logger carrying it to every log line for that request, including the
- * one it emits automatically on `res.finish` (MILESTONE Phase 2).
+ * one it emits automatically on `res.finish`.
  */
 export function createRequestLogging(logger: Logger): RequestHandler {
   return pinoHttp({

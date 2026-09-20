@@ -6,7 +6,7 @@ import type { InboundMessage } from './messages.js';
 const ALL_MESSAGE_TYPES = Object.keys(MESSAGE_CLASS) as (keyof typeof MESSAGE_CLASS)[];
 
 describe('MESSAGE_CLASS', () => {
-  it('classifies every message type named in MILESTONE Phase 1', () => {
+  it('classifies every known message type', () => {
     expect(MESSAGE_CLASS.cursor).toBe('lossy');
     expect(MESSAGE_CLASS.scroll).toBe('lossy');
 

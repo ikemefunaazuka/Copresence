@@ -4,9 +4,9 @@ import { InboundMessageSchema } from './schemas.js';
 
 /**
  * Every way `decodeInbound` can fail, as data rather than a thrown
- * exception — the codec is "no input throws" total by construction (see
- * MILESTONE Phase 1's totality requirement, and models/applyEvent.ts which
- * relies on this never surfacing an exception it would have to catch).
+ * exception — the codec is "no input throws" total by construction, the
+ * same guarantee `models/applyEvent.ts` relies on never surfacing an
+ * exception it would have to catch.
  */
 export type DecodeError =
   | { readonly kind: 'malformed-json'; readonly detail: string }

@@ -13,7 +13,7 @@ import { TickScheduler } from './services/TickScheduler.js';
 /**
  * Composition root. Assembles every service exactly once, wires the
  * transport on top of them, and owns the one graceful-shutdown sequence
- * that stops all of it in a sane order (MILESTONE Phase 2).
+ * that stops all of it in a sane order.
  */
 function main(): void {
   let env;

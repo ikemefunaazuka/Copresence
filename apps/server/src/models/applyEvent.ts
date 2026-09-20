@@ -13,9 +13,9 @@ import type { Session } from './Session.js';
 /**
  * The presence-affecting subset of `InboundMessage`. Audit messages
  * (session.*, participant.*, visibility.change) and control messages
- * (ping/ack) do not mutate presence state and are handled elsewhere
- * (Phase 2's AuditLog service and connection controller, respectively) —
- * `models/` only owns what changes `Session`.
+ * (ping/ack) do not mutate presence state and are handled elsewhere (the
+ * AuditLog service and connection controller, respectively) — `models/`
+ * only owns what changes `Session`.
  */
 export type SessionEvent = HelloMessage | CursorMessage | ScrollMessage | ByeMessage;
 
@@ -40,7 +40,7 @@ function unchanged(session: Session): ApplyResult {
 /**
  * The single reducer every presence-affecting inbound message passes
  * through. Pure and total: every branch returns a `Session` — the exact
- * same reference when nothing changed — and `changed` tells the (Phase 2)
+ * same reference when nothing changed — and `changed` tells the
  * broadcaster whether this tick has anything worth sending, so a no-op
  * tick can be skipped cheaply under load.
  *

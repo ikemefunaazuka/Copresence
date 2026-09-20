@@ -17,7 +17,7 @@ export interface ReaperDeps {
 }
 
 /**
- * The server never waits to be told a session ended (MILESTONE Phase 2):
+ * The server never waits to be told a session ended:
  * `SessionRegistry.reapStale` finds participants nobody has heard from in
  * a while, and this is what happens to each one — an audit record tagged
  * `source: 'inferred'` (nobody reported this; the server noticed it), and

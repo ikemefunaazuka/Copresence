@@ -114,7 +114,7 @@ describe('applyEvent — unit behaviour', () => {
   });
 });
 
-// ---- Property tests — MILESTONE Phase 1 exit criteria -----------------
+// ---- Property tests ---------------------------------------------------
 
 /** A realistic cursor/scroll/hello/bye event for a single fixed participant. */
 const eventArb: fc.Arbitrary<{ seq: number; x: number; y: number; kind: 'cursor' | 'scroll' }> =

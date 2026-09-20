@@ -11,13 +11,13 @@ export interface PresenceDirty {
 
 /**
  * The roster and per-participant presence for one session, plus dirty-
- * field tracking for delta emission (MILESTONE Phase 1). Every mutation
- * returns a new `Session` — this is a pure, immutable update pattern, not
- * a class with internal mutable state, so equality and time-travel in
- * tests are just object comparison.
+ * field tracking for delta emission. Every mutation returns a new
+ * `Session` — this is a pure, immutable update pattern, not a class with
+ * internal mutable state, so equality and time-travel in tests are just
+ * object comparison.
  *
  * Dirty tracking here covers presence fields (cursor/scroll) only, which
- * is what Phase 2's coalesced `patch` broadcast needs to build a minimal
+ * is what the coalesced `patch` broadcast needs to build a minimal
  * delta. Roster changes (join/leave) are LOSSLESS and, per the message
  * classification, sent immediately rather than batched — they need no
  * dirty tracking of their own.
@@ -105,7 +105,7 @@ export function markPresenceDirty(
   return { ...session, dirty: nextDirty };
 }
 
-/** Called by the (Phase 2) tick scheduler once a patch has been flushed for everyone. */
+/** Called by the tick scheduler once a patch has been flushed for everyone. */
 export function clearDirty(session: Session): Session {
   if (session.dirty.size === 0) return session;
   return { ...session, dirty: new Map() };

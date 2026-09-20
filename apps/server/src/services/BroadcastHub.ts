@@ -13,8 +13,7 @@ interface Connection {
  * and unregistering connections, sending to one participant, broadcasting
  * to everyone in a session. Deliberately knows nothing about ticking or
  * about `Session`'s dirty-field state; that orchestration is
- * `TickScheduler`'s job, built on top of this one (MILESTONE Phase 2:
- * "BroadcastHub + TickScheduler").
+ * `TickScheduler`'s job, built on top of this one.
  *
  * Reused for both kinds of send: the coalesced, lossy `patch` on a tick,
  * and an immediate, lossless `join`/`leave`/`welcome` the moment it

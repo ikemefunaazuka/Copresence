@@ -2,10 +2,10 @@ import { z } from 'zod';
 
 /**
  * zod validators for every INBOUND (client → server) message, including the
- * audit/lifecycle events — "parse at the boundary, trust everywhere inside"
- * (MILESTONE Phase 1). Outbound messages are server-authored and never
- * parsed from untrusted input, so they are hand-typed in messages.ts
- * instead of schema-derived here.
+ * audit/lifecycle events — "parse at the boundary, trust everywhere
+ * inside". Outbound messages are server-authored and never parsed from
+ * untrusted input, so they are hand-typed in messages.ts instead of
+ * schema-derived here.
  *
  * These schemas are the SOURCE OF TRUTH for the inbound message shapes —
  * messages.ts derives its exported types from them via `z.infer`, rather
@@ -22,7 +22,7 @@ import { z } from 'zod';
 
 export const SessionIdSchema = z.string().min(1).brand<'SessionId'>();
 export const ParticipantIdSchema = z.string().min(1).brand<'ParticipantId'>();
-/** Client-generated, the dedupe key for audit events (MILESTONE Phase 1, 6). */
+/** Client-generated, the dedupe key for audit events. */
 export const EventIdSchema = z.string().min(1).brand<'EventId'>();
 
 export type SessionId = z.infer<typeof SessionIdSchema>;

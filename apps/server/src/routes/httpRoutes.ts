@@ -4,7 +4,7 @@ import { createHealthController } from '../controllers/HealthController.js';
 import { createSessionController } from '../controllers/SessionController.js';
 import type { ControllerDeps } from '../controllers/types.js';
 
-/** The HTTP route table — mirrors the realtime dispatch table's shape (MILESTONE §2.1). */
+/** The HTTP route table — mirrors the realtime dispatch table's shape. */
 export function createHttpRoutes(deps: ControllerDeps): Router {
   const router = Router();
   const health = createHealthController();

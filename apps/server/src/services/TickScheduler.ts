@@ -15,11 +15,11 @@ export interface TickSchedulerDeps {
 /**
  * Owns the 20 Hz timer and what happens on every tick of it. The server
  * never forwards a `cursor`/`scroll` message as it arrives — `applyEvent`
- * (Phase 1) already folded it into `Session`'s dirty-field state, and
- * this is where that state actually goes out: build the coalesced patch,
- * broadcast it, clear the dirty flags. A session with nothing dirty costs
- * nothing here — `toPatch` returns `undefined` and the tick moves on
- * (MILESTONE Phase 2, docs/adr/0003).
+ * already folded it into `Session`'s dirty-field state, and this is
+ * where that state actually goes out: build the coalesced patch,
+ * broadcast it, clear the dirty flags. A session with nothing dirty
+ * costs nothing here — `toPatch` returns `undefined` and the tick moves
+ * on (docs/adr/0003).
  *
  * `tick()` is exposed as a plain method precisely so tests can call it
  * directly rather than waiting on a real interval to fire.
@@ -43,8 +43,7 @@ export class TickScheduler {
     if (this.#timer) return; // idempotent — calling start() twice does not double the rate
     this.#timer = setInterval(() => this.tick(), this.#intervalMs);
     // Does not, on its own, keep the Node process alive — matters for
-    // graceful shutdown (MILESTONE Phase 2) and for tests that never call
-    // start() at all.
+    // graceful shutdown and for tests that never call start() at all.
     this.#timer.unref();
   }
 

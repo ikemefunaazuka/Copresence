@@ -35,7 +35,7 @@ export type ParticipantJoinMessage = z.infer<typeof ParticipantJoinMessageSchema
 export type ParticipantLeaveMessage = z.infer<typeof ParticipantLeaveMessageSchema>;
 export type VisibilityChangeMessage = z.infer<typeof VisibilityChangeMessageSchema>;
 
-/** MILESTONE Phase 1: "must arrive eventually", deduped on `eventId`. */
+/** Must arrive *eventually*, deduped on `eventId`. */
 export type AuditMessage =
   | SessionStartMessage
   | SessionEndMessage
@@ -133,11 +133,11 @@ export type OutboundMessage =
 
 export type Message = InboundMessage | OutboundMessage;
 
-// ---- Message classification (MILESTONE Phase 1 / ADR 0009) ----------------
+// ---- Message classification (ADR 0009) -------------------------------------
 //
 // The decision the rest of the system hangs off. `patch` and `bye` are not
-// named explicitly in MILESTONE's classification table, so their class is
-// inferred here rather than left undefined:
+// named explicitly in the original classification sketch, so their class
+// is inferred here rather than left undefined:
 //   - `patch` is the broadcast OUTPUT of coalescing lossy cursor/scroll
 //     data. Missing one tick is superseded by the next ~50ms later, so it
 //     inherits the lossy policy of the data it carries.

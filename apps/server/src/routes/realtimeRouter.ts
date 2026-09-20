@@ -9,8 +9,8 @@ import type { Logger } from '../lib/logger.js';
 
 /**
  * The realtime dispatch table: `messageType → controller`, mirroring the
- * HTTP router (MILESTONE §2.1). TypeScript cannot type a `Record`-keyed
- * lookup table safely over a discriminated union without an unsafe cast
+ * HTTP router. TypeScript cannot type a `Record`-keyed lookup table
+ * safely over a discriminated union without an unsafe cast
  * at every entry — so the actual narrowing below is a `switch`, but built
  * to have the property that matters: one line per case, no inline logic,
  * every case calling straight into an independently-testable controller
@@ -42,8 +42,8 @@ function sendError(
 /**
  * Handles one raw frame from one connection. Never throws — a malformed
  * or adversarial frame gets an `error` frame back and the connection
- * survives (MILESTONE Phase 2 exit criteria), exactly like `decodeInbound`
- * itself is total by construction (MILESTONE Phase 1).
+ * survives, exactly like `decodeInbound` itself is total by
+ * construction.
  */
 export function handleRealtimeMessage(
   ctx: ConnectionContext,

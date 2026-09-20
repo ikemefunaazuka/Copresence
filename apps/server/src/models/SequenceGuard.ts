@@ -2,7 +2,7 @@
  * Tracks the highest sequence number seen from a single participant and
  * rejects any regression — the single primitive that gives both
  * idempotency (re-applying the same seq is a no-op) and out-of-order
- * rejection (MILESTONE Phase 1).
+ * rejection.
  *
  * Also records which sequence numbers were skipped over, so a caller can
  * tell "8 was lost" apart from "the participant went quiet". What a gap

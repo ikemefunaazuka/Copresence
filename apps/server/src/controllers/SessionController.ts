@@ -9,9 +9,9 @@ import type { ControllerDeps } from './types.js';
 /**
  * HTTP: create, join, inspect. "Join" and "inspect" are the same read —
  * a client about to open a WebSocket checks the session exists exactly
- * the way a human or a tool checking its state would (MILESTONE Phase 2).
- * The shareable-link UX around this is Phase 4's job; this is the plain
- * REST surface it will be built on.
+ * the way a human or a tool checking its state would. The shareable-link
+ * UX around this comes later; this is the plain REST surface it will be
+ * built on.
  */
 export function createSessionController(deps: ControllerDeps) {
   return {

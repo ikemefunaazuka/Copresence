@@ -14,9 +14,8 @@ import type { Session } from '../models/Session.js';
 
 /**
  * Presenters: domain state → wire DTOs, and nothing else. No business
- * logic, no I/O (MILESTONE §2.1, the `views/` row) — every function here
- * is a pure mapping a controller calls once it already has the state it
- * needs.
+ * logic, no I/O — every function here is a pure mapping a controller
+ * calls once it already has the state it needs.
  *
  * `exactOptionalPropertyTypes` means an absent cursor/scroll cannot be
  * expressed as `x: undefined` — the key must be omitted entirely, not
@@ -71,9 +70,9 @@ export function toSnapshot(session: Session, seq: number, now: number): Snapshot
 /**
  * The coalesced tick output — only the fields marked dirty since the last
  * flush, one entry per participant who actually changed. Returns
- * `undefined` when nothing is dirty, so the (Phase 2) tick scheduler can
- * skip broadcasting an empty patch entirely, the whole point of Session's
- * dirty-field tracking (MILESTONE Phase 1).
+ * `undefined` when nothing is dirty, so the tick scheduler can skip
+ * broadcasting an empty patch entirely, the whole point of Session's
+ * dirty-field tracking.
  */
 export function toPatch(session: Session, seq: number, now: number): PatchMessage | undefined {
   if (session.dirty.size === 0) return undefined;

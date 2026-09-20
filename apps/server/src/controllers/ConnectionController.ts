@@ -90,8 +90,8 @@ export function handlePing(ctx: ConnectionContext, msg: PingMessage, deps: Contr
  * The raw WebSocket 'close' event — called whether or not `bye` was ever
  * received. When it was not, this is the server *observing* the end of a
  * session rather than being told, which is exactly what `source: 'socket'`
- * means (MILESTONE Phase 2, 6) — distinct from the heartbeat-timeout
- * reaper's `source: 'inferred'` (SessionRegistry.reapStale).
+ * means — distinct from the heartbeat-timeout reaper's
+ * `source: 'inferred'` (SessionRegistry.reapStale).
  */
 export function handleDisconnect(ctx: ConnectionContext, deps: ControllerDeps): void {
   if (!ctx.pid) return; // never completed the handshake — nothing was registered

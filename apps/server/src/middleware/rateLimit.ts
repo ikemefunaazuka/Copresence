@@ -3,8 +3,8 @@ import rateLimit from 'express-rate-limit';
 
 /**
  * A plain fixed-window limiter on the HTTP surface — session creation and
- * lookup, not the WebSocket data path (which has its own defence:
- * backpressure and the lossy-drop policy land in Phase 3, not here).
+ * lookup, not the WebSocket data path (which has its own defence: the
+ * client's backpressure and lossy-drop policy land separately, not here).
  * Generous enough not to bother a real user or a reviewer clicking
  * around, tight enough to blunt a trivial script hammering
  * `POST /api/sessions`.

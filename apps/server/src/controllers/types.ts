@@ -8,11 +8,10 @@ import type { BroadcastHub } from '../services/BroadcastHub.js';
 import type { SessionRegistry } from '../services/SessionRegistry.js';
 
 /**
- * Realtime controllers take `(ctx, msg)`, mirroring HTTP's `(req, res)`
- * (MILESTONE §2.1). One `ConnectionContext` per live WebSocket connection
- * — created when the socket is accepted, before `hello` has necessarily
- * arrived, which is why `pid` starts undefined and is set once the
- * handshake completes.
+ * Realtime controllers take `(ctx, msg)`, mirroring HTTP's `(req, res)`.
+ * One `ConnectionContext` per live WebSocket connection — created when
+ * the socket is accepted, before `hello` has necessarily arrived, which
+ * is why `pid` starts undefined and is set once the handshake completes.
  */
 export interface ConnectionContext {
   readonly socket: WebSocket;

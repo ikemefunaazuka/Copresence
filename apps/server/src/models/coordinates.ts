@@ -5,7 +5,7 @@
  * sizes, zoom levels and `devicePixelRatio` place a cursor on the same
  * paragraph, not the same pixel offset.
  *
- * The caller (Phase 3 client capture/render code) is responsible for
+ * The caller (client-side capture/render code) is responsible for
  * reading real DOM values (its own scrollY, its own document width) and
  * passing them in; this module never assumes whose numbers they are, which
  * is exactly what lets the same function convert on the way in and on the

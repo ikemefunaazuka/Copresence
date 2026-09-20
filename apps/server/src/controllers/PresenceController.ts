@@ -7,9 +7,9 @@ import type { ConnectionContext, ControllerDeps } from './types.js';
 /**
  * Cursor and scroll ingest. Deliberately does nothing but fold the event
  * into `Session` via `applyEvent` and save — no broadcast happens here.
- * That is the entire point of coalescing (MILESTONE Phase 2, docs/adr/0003):
- * the next tick picks up whatever is dirty and sends one patch, however
- * many `cursor` messages arrived in between.
+ * That is the entire point of coalescing (docs/adr/0003): the next tick
+ * picks up whatever is dirty and sends one patch, however many `cursor`
+ * messages arrived in between.
  */
 export function handleCursor(
   ctx: ConnectionContext,

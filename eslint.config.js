@@ -48,9 +48,8 @@ export default tseslint.config(
     },
   },
   {
-    // The rule that keeps the server's MVC boundary honest (MILESTONE §2.1):
-    // models/ must not import Node builtins or the transport framework.
-    // Inert until apps/server/src/models/ exists in Phase 2 — see ADR 0002.
+    // The rule that keeps the server's MVC boundary honest: models/ must
+    // not import Node builtins or the transport framework. See ADR 0002.
     files: ['apps/server/src/models/**/*.ts'],
     rules: {
       'no-restricted-imports': [

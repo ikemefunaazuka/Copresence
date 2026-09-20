@@ -19,8 +19,7 @@ export interface CreateAppOptions {
 /**
  * Express app only — no `.listen()` here, so tests can exercise it
  * directly (a real HTTP request against an ephemeral port, or in-process)
- * without needing the WebSocket half `server.ts` adds on top
- * (MILESTONE Phase 2).
+ * without needing the WebSocket half `server.ts` adds on top.
  *
  * Middleware order: request id → structured logging → security headers →
  * CORS → rate limit → routes → centralised error handler last, so it

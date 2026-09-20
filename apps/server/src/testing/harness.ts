@@ -19,8 +19,8 @@ import { TickScheduler } from '../services/TickScheduler.js';
 /**
  * Boots the real composition — `createApp` + `createServer`, real
  * services, a real `http.Server` on an OS-assigned port — for integration
- * tests that need genuine sockets, not mocks (MILESTONE Phase 2 exit
- * criteria). Not unit-tested itself; exercised by every test that uses it.
+ * tests that need genuine sockets, not mocks. Not unit-tested itself;
+ * exercised by every test that uses it.
  */
 export interface TestServer {
   readonly port: number;

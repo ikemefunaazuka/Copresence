@@ -3,9 +3,9 @@
  * know. Services (SessionRegistry's TTL reaper, the heartbeat, the tick
  * scheduler) take a `Clock` rather than calling `Date.now()` directly —
  * the same reasoning that keeps `models/` pure by taking `now` as a
- * parameter (MILESTONE Phase 1), one layer up: real time makes timing-
- * dependent behaviour slow and flaky to test, so tests inject a fake one
- * instead of racing real timers.
+ * parameter, one layer up: real time makes timing-dependent behaviour
+ * slow and flaky to test, so tests inject a fake one instead of racing
+ * real timers.
  */
 export interface Clock {
   now(): number;

@@ -21,7 +21,7 @@ import {
 
 /**
  * Real `ws` clients against a real, fully composed server on an
- * OS-assigned port — not mocks (MILESTONE Phase 2 exit criteria).
+ * OS-assigned port — not mocks.
  */
 
 function isWelcome(msg: OutboundMessage): msg is WelcomeMessage {

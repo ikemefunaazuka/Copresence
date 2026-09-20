@@ -93,7 +93,7 @@ describe('SequenceGuard.accept — unit behaviour', () => {
   });
 });
 
-describe('SequenceGuard — property tests (MILESTONE Phase 1 exit criteria)', () => {
+describe('SequenceGuard — property tests', () => {
   it('monotonicity: never accepts a regression, under any shuffled input', () => {
     fc.assert(
       fc.property(
