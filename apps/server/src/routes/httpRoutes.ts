@@ -1,5 +1,6 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 
+import { createAuditController } from '../controllers/AuditController.js';
 import { createChaosController } from '../controllers/ChaosController.js';
 import { createDemoController } from '../controllers/DemoController.js';
 import { createHealthController } from '../controllers/HealthController.js';
@@ -26,6 +27,7 @@ export function createHttpRoutes(
   const sessions = createSessionController(deps);
   const demo = createDemoController(deps);
   const chaos = createChaosController(observability.chaos);
+  const audit = createAuditController(deps);
   const metrics = createMetricsController({
     metrics: observability.metrics,
     convergenceTracker: observability.convergenceTracker,
@@ -37,6 +39,13 @@ export function createHttpRoutes(
   router.post('/api/sessions', sessions.create);
   router.get('/api/sessions/:sid', sessions.getBySessionId);
   router.get('/api/sessions/:sid/convergence', metrics.convergence);
+  router.get('/api/sessions/:sid/audit', audit.list);
+
+  // A plain `text/plain` body, not JSON — see ADR 0011 for why (avoids a
+  // CORS preflight `sendBeacon`/`fetch(keepalive)` can't rely on
+  // completing on the unload path); the body content is still
+  // JSON-encoded, parsed by `decodeInbound` inside the handler itself.
+  router.post('/audit/beacon', express.text({ type: '*/*' }), audit.beacon);
 
   router.get('/', demo.landing);
   router.get('/s/new', demo.newSession);

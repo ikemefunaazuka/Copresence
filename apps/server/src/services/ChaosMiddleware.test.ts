@@ -274,6 +274,52 @@ describe('ChaosMiddleware', () => {
     expect(orderB).toEqual([]); // b's buffer is untouched by a's traffic
   });
 
+  it('a buffered message that never gets naturally evicted is still released, via the fallback hold timer', () => {
+    // Traffic stops after two messages with a window of 5 — the buffer
+    // never overflows, so without a fallback these would be stuck forever.
+    const scheduled: (() => void)[] = [];
+    const chaos = new ChaosMiddleware({
+      clock: createFakeClock(),
+      setTimeoutFn: (cb) => {
+        scheduled.push(cb);
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      },
+    });
+    chaos.configure({ reorderWindow: 5 });
+
+    const order: number[] = [];
+    chaos.send(pid('p1'), pong(1), () => order.push(1));
+    chaos.send(pid('p1'), pong(2), () => order.push(2));
+    expect(order).toEqual([]); // buffer never overflowed — nothing released yet
+
+    for (const cb of scheduled) cb(); // the two fallback hold-timers firing
+
+    expect(order.sort()).toEqual([1, 2]); // both eventually delivered regardless
+  });
+
+  it('the fallback hold timer is a no-op if the message was already released by a natural overflow', () => {
+    const scheduled: (() => void)[] = [];
+    const chaos = new ChaosMiddleware({
+      clock: createFakeClock(),
+      random: scriptedRandom([0]),
+      setTimeoutFn: (cb) => {
+        scheduled.push(cb);
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      },
+    });
+    chaos.configure({ reorderWindow: 1 });
+
+    const order: number[] = [];
+    chaos.send(pid('p1'), pong(1), () => order.push(1));
+    chaos.send(pid('p1'), pong(2), () => order.push(2)); // overflow: releases message 1
+    expect(order).toEqual([1]);
+
+    expect(() => {
+      for (const cb of scheduled) cb(); // message 1's fallback timer firing after it's already gone
+    }).not.toThrow();
+    expect(order).toEqual([1, 2]); // message 1 was not delivered a second time
+  });
+
   it('flush() releases everything still buffered, in arrival order', () => {
     const chaos = new ChaosMiddleware({ clock: createFakeClock() });
     chaos.configure({ reorderWindow: 5 });

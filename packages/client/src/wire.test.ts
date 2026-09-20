@@ -7,7 +7,11 @@ import {
   buildHello,
   buildPing,
   buildScroll,
+  buildSessionEnd,
+  buildSessionStart,
+  buildVisibilityChange,
   createWireContext,
+  generateEventId,
 } from './wire.js';
 
 describe('createWireContext', () => {
@@ -70,5 +74,33 @@ describe('message builders', () => {
   it('buildPing and buildBye carry only the envelope', () => {
     expect(buildPing(ctx).t).toBe('ping');
     expect(buildBye(ctx).t).toBe('bye');
+  });
+
+  it('buildSessionStart carries the given eventId', () => {
+    const message = buildSessionStart(ctx, 'evt-1');
+    expect(message).toMatchObject({ t: 'session.start', eventId: 'evt-1', sid: 's1', pid: 'p1' });
+  });
+
+  it('buildSessionEnd carries the given eventId and reason', () => {
+    const message = buildSessionEnd(ctx, 'evt-2', 'navigate');
+    expect(message).toMatchObject({ t: 'session.end', eventId: 'evt-2', reason: 'navigate' });
+  });
+
+  it('buildVisibilityChange carries the given eventId and visibilityState', () => {
+    const message = buildVisibilityChange(ctx, 'evt-3', 'hidden');
+    expect(message).toMatchObject({
+      t: 'visibility.change',
+      eventId: 'evt-3',
+      visibilityState: 'hidden',
+    });
+  });
+});
+
+describe('generateEventId', () => {
+  it('returns a non-empty string, different on every call', () => {
+    const a = generateEventId();
+    const b = generateEventId();
+    expect(a).not.toHaveLength(0);
+    expect(a).not.toBe(b);
   });
 });

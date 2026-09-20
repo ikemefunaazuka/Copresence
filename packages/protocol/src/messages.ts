@@ -109,6 +109,17 @@ export interface PongMessage extends OutboundEnvelope<'pong'> {
   readonly pingTs: number;
 }
 
+/**
+ * Confirms one audit event was durably recorded — the signal the client's
+ * outbox waits for before it may delete its own copy ("persist before
+ * sending; clear only on acknowledgement", see ADR 0012). Sent over the
+ * live socket only; the `POST /audit/beacon` path is acknowledged by its
+ * own HTTP response instead, needing no wire message of its own.
+ */
+export interface AuditAckMessage extends OutboundEnvelope<'audit.ack'> {
+  readonly eventId: string;
+}
+
 export type ErrorCode =
   | 'malformed-json'
   | 'validation-failed'
@@ -129,6 +140,7 @@ export type OutboundMessage =
   | PatchMessage
   | SnapshotMessage
   | PongMessage
+  | AuditAckMessage
   | ErrorMessage;
 
 export type Message = InboundMessage | OutboundMessage;
@@ -162,6 +174,7 @@ export const MESSAGE_CLASS: Readonly<Record<Message['t'], MessageClass>> = {
   ping: 'control',
   pong: 'control',
   ack: 'control',
+  'audit.ack': 'control',
   error: 'control',
 
   'session.start': 'audit',

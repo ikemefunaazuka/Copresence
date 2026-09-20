@@ -7,6 +7,7 @@ import { systemClock } from './lib/clock.js';
 import { createLogger } from './lib/logger.js';
 import { createServer } from './server.js';
 import { AuditLog } from './services/AuditLog.js';
+import { AuditReconciler } from './services/AuditReconciler.js';
 import { BroadcastHub } from './services/BroadcastHub.js';
 import { ChaosMiddleware } from './services/ChaosMiddleware.js';
 import { ConvergenceTracker } from './services/ConvergenceTracker.js';
@@ -86,6 +87,15 @@ function main(): void {
     metrics,
   });
   const reaper = new Reaper({ registry, hub, auditLog, clock, ttlMs: env.PARTICIPANT_TTL_MS });
+  // Reuses the same TTL as participant presence — "how long before we
+  // stop waiting to hear anything else" is the same question either way,
+  // and a second, independently-tuned env var would be config surface
+  // this project doesn't otherwise need.
+  const auditReconciler = new AuditReconciler({
+    auditLog,
+    clock,
+    ttlMs: env.PARTICIPANT_TTL_MS,
+  });
 
   server.httpServer.listen(env.PORT, () => {
     logger.info(
@@ -96,6 +106,7 @@ function main(): void {
     // A sweep well within one TTL window, not tied to the presence tick
     // rate — see services/Reaper.ts.
     reaper.start(Math.max(1_000, Math.floor(env.PARTICIPANT_TTL_MS / 3)));
+    auditReconciler.start(Math.max(1_000, Math.floor(env.PARTICIPANT_TTL_MS / 3)));
   });
 
   let shuttingDown = false;
@@ -106,6 +117,7 @@ function main(): void {
 
     tickScheduler.stop();
     reaper.stop();
+    auditReconciler.stop();
 
     server
       .close()

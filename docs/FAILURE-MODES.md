@@ -82,6 +82,13 @@ Reproduction steps that reference the chaos panel assume the server is running (
 - **Lives in:** `apps/server/src/services/ChaosMiddleware.ts`.
 - **Reproduce:** `chaos.integration.test.ts -t "10s partition"`; live, the "Partition for 10s" button on `/chaos`.
 
+### A reorder-buffered message that never gets picked back up
+
+- **Symptom, if unhandled:** with `reorderWindow > 0`, a message only leaves the shuffle buffer when a _later_ message pushes the buffer past the window size. If traffic trails off — exactly what happens once real movement stops and the settle-window resends eventually end too — whatever is still sitting in the buffer at that point has nothing left to ever evict it, and is lost permanently, not just delayed.
+- **Mechanism:** every buffered message also gets its own bounded fallback release timer (`REORDER_MAX_HOLD_MS`, 200 ms) when it's first queued, independent of whether the buffer ever overflows again. Whichever happens first — a natural overflow eviction or the fallback timer — releases it exactly once; the other becomes a no-op (checked by object identity against what's still in the buffer).
+- **Lives in:** `apps/server/src/services/ChaosMiddleware.ts` (`#releaseIfStillBuffered`).
+- **Reproduce:** `ChaosMiddleware.test.ts -t "never gets naturally evicted"`.
+
 ---
 
 ## Connection & transport lifecycle

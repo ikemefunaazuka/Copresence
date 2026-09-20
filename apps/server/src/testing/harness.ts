@@ -12,6 +12,7 @@ import { createLogger } from '../lib/logger.js';
 import type { CopresenceServer } from '../server.js';
 import { createServer } from '../server.js';
 import { AuditLog } from '../services/AuditLog.js';
+import { AuditReconciler } from '../services/AuditReconciler.js';
 import { BroadcastHub } from '../services/BroadcastHub.js';
 import { ChaosMiddleware } from '../services/ChaosMiddleware.js';
 import { ConvergenceTracker } from '../services/ConvergenceTracker.js';
@@ -38,6 +39,7 @@ export interface TestServer {
   readonly auditLog: AuditLog;
   readonly tickScheduler: TickScheduler;
   readonly reaper: Reaper;
+  readonly auditReconciler: AuditReconciler;
   readonly chaos: ChaosMiddleware;
   readonly metrics: MetricsCollector;
   readonly convergenceTracker: ConvergenceTracker;
@@ -110,6 +112,11 @@ export async function startTestServer(
     clock: systemClock,
     ttlMs: options.participantTtlMs ?? 60_000,
   });
+  const auditReconciler = new AuditReconciler({
+    auditLog,
+    clock: systemClock,
+    ttlMs: options.participantTtlMs ?? 60_000,
+  });
 
   await new Promise<void>((resolve) => {
     server.httpServer.listen(0, resolve);
@@ -125,6 +132,7 @@ export async function startTestServer(
     auditLog,
     tickScheduler,
     reaper,
+    auditReconciler,
     chaos,
     metrics,
     convergenceTracker,
@@ -132,6 +140,7 @@ export async function startTestServer(
     async close() {
       tickScheduler.stop();
       reaper.stop();
+      auditReconciler.stop();
       await server.close();
     },
   };

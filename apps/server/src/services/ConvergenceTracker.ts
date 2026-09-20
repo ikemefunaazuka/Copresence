@@ -74,7 +74,8 @@ export class ConvergenceTracker {
         return;
       case 'pong':
       case 'error':
-        return; // neither carries roster state
+      case 'audit.ack':
+        return; // none of these carry roster state
     }
   }
 

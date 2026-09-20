@@ -27,6 +27,17 @@ const MAX_LATENCY_MS = 2_000;
 const MAX_JITTER_MS = 500;
 const MAX_REORDER_WINDOW = 10;
 const MAX_PARTITION_MS = 30_000;
+/**
+ * A buffered entry is only released early by a *new* message pushing the
+ * buffer past `reorderWindow` — so if traffic trails off (the exact case
+ * once real movement stops and `TickScheduler`'s own settle-window
+ * resends eventually end too), whatever is still buffered would
+ * otherwise sit there forever with nothing left to trigger its release.
+ * This bounds the wait: every entry gets a fallback release at the
+ * latest this many ms after being buffered, whether or not the window
+ * ever overflows again.
+ */
+const REORDER_MAX_HOLD_MS = 200;
 
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
@@ -158,14 +169,33 @@ export class ChaosMiddleware {
     }
 
     const buffer = this.#reorderBuffers.get(pid) ?? [];
-    buffer.push({ message, rawSend });
+    const entry: QueuedSend = { message, rawSend };
+    buffer.push(entry);
     this.#reorderBuffers.set(pid, buffer);
 
     if (buffer.length > window) {
-      const index = Math.floor(this.#random() * buffer.length);
-      const picked = buffer.splice(index, 1)[0];
-      if (picked) this.#dispatch(pid, picked.message, picked.rawSend);
+      this.#releaseRandomFrom(pid, buffer);
     }
+
+    // Guarantees `entry` is never stuck forever if the buffer happens not
+    // to overflow again — a no-op if it was already released above (or by
+    // a later overflow) before this fires.
+    this.#setTimeoutFn(() => this.#releaseIfStillBuffered(pid, entry), REORDER_MAX_HOLD_MS);
+  }
+
+  #releaseRandomFrom(pid: ParticipantId, buffer: QueuedSend[]): void {
+    const index = Math.floor(this.#random() * buffer.length);
+    const picked = buffer.splice(index, 1)[0];
+    if (picked) this.#dispatch(pid, picked.message, picked.rawSend);
+  }
+
+  #releaseIfStillBuffered(pid: ParticipantId, entry: QueuedSend): void {
+    const buffer = this.#reorderBuffers.get(pid);
+    if (!buffer) return;
+    const index = buffer.indexOf(entry);
+    if (index === -1) return; // already released via a natural overflow eviction
+    buffer.splice(index, 1);
+    this.#dispatch(pid, entry.message, entry.rawSend);
   }
 
   /** Releases anything still buffered for reordering, in arrival order — nothing is left silently stuck when the window is turned down or off. */

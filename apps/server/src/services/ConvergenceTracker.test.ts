@@ -188,4 +188,25 @@ describe('ConvergenceTracker', () => {
 
     expect(tracker.snapshot(sid('s1')).hashes['a']).toBe(before);
   });
+
+  it('audit.ack messages are also ignored — an acknowledgement carries no roster state either', () => {
+    const tracker = new ConvergenceTracker();
+    tracker.recordDelivery(
+      sid('s1'),
+      pid('a'),
+      welcome([{ pid: pid('a'), color: '#f00', lastSeenAt: 0 }]),
+    );
+    const before = tracker.snapshot(sid('s1')).hashes['a'];
+
+    tracker.recordDelivery(sid('s1'), pid('a'), {
+      v: PROTOCOL_VERSION,
+      t: 'audit.ack',
+      sid: sid('s1'),
+      seq: 99,
+      ts: 0,
+      eventId: 'evt-1',
+    });
+
+    expect(tracker.snapshot(sid('s1')).hashes['a']).toBe(before);
+  });
 });

@@ -2,11 +2,15 @@ import { PROTOCOL_VERSION } from '@copresence/protocol';
 import type {
   ByeMessage,
   CursorMessage,
+  EventId,
   HelloMessage,
   ParticipantId,
   PingMessage,
   ScrollMessage,
+  SessionEndMessage,
   SessionId,
+  SessionStartMessage,
+  VisibilityChangeMessage,
 } from '@copresence/protocol';
 
 /**
@@ -125,5 +129,64 @@ export function buildBye(ctx: WireContext): ByeMessage {
     pid: ctx.pid,
     seq: ctx.nextSeq(),
     ts: Date.now(),
+  };
+}
+
+/**
+ * A fresh, client-generated id for one audit event — a plain
+ * `crypto.randomUUID()` cast to the branded type, the same no-runtime-
+ * effect reasoning `brand()` above already relies on for `sid`/`pid`.
+ * Every retry of the *same* logical event (a resend after a dropped
+ * `audit.ack`, an outbox replay) must reuse the *same* `eventId` it was
+ * first built with — this function is only ever called once per event,
+ * at the point it is first created, never at resend time.
+ */
+export function generateEventId(): string {
+  return crypto.randomUUID();
+}
+
+export function buildSessionStart(ctx: WireContext, eventId: string): SessionStartMessage {
+  return {
+    v: PROTOCOL_VERSION,
+    t: 'session.start',
+    sid: ctx.sid,
+    pid: ctx.pid,
+    seq: ctx.nextSeq(),
+    ts: Date.now(),
+    eventId: eventId as EventId,
+  };
+}
+
+export function buildSessionEnd(
+  ctx: WireContext,
+  eventId: string,
+  reason: SessionEndMessage['reason'],
+): SessionEndMessage {
+  return {
+    v: PROTOCOL_VERSION,
+    t: 'session.end',
+    sid: ctx.sid,
+    pid: ctx.pid,
+    seq: ctx.nextSeq(),
+    ts: Date.now(),
+    eventId: eventId as EventId,
+    reason,
+  };
+}
+
+export function buildVisibilityChange(
+  ctx: WireContext,
+  eventId: string,
+  visibilityState: VisibilityChangeMessage['visibilityState'],
+): VisibilityChangeMessage {
+  return {
+    v: PROTOCOL_VERSION,
+    t: 'visibility.change',
+    sid: ctx.sid,
+    pid: ctx.pid,
+    seq: ctx.nextSeq(),
+    ts: Date.now(),
+    eventId: eventId as EventId,
+    visibilityState,
   };
 }
