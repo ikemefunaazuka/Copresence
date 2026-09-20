@@ -39,6 +39,15 @@ import type { WireContext } from './wire.js';
 const PING_INTERVAL_MS = 15_000;
 const HEARTBEAT_CHECK_INTERVAL_MS = Math.max(1_000, Math.floor(PARTICIPANT_TTL_MS / 3));
 
+/** One remote participant, as handed to `onPresenceChange` — a host page's only view into the roster this SDK otherwise keeps to itself. */
+export interface RosterParticipant {
+  readonly pid: string;
+  readonly color: string;
+  readonly lastSeenAt: number;
+  /** Document-normalised, the same space the wire protocol uses — omitted until this participant has sent a first cursor position. */
+  readonly cursor?: { readonly x: number; readonly y: number };
+}
+
 export interface CopresenceOptions {
   /** `ws://` or `wss://` URL for the session's WebSocket endpoint, `sid` already included as a query parameter. */
   readonly wsUrl: string;
@@ -49,9 +58,23 @@ export interface CopresenceOptions {
   readonly win?: Window;
   /** Injectable so tests can drive the whole SDK without a real network connection. */
   readonly createSocket?: (url: string) => WebSocketLike;
+  /** Fires with the full remote roster whenever it changes (join/leave/welcome/patch) — everything a host page needs to render its own participant list. */
+  readonly onPresenceChange?: (participants: readonly RosterParticipant[]) => void;
+  /** Fires with the round-trip time in ms whenever a `pong` answers this SDK's own heartbeat ping. */
+  readonly onLatency?: (rttMs: number) => void;
+  /**
+   * Fires with the followed pid, or `null` once nobody is followed —
+   * including the moment a local scroll releases follow on its own (the
+   * "local-intent break"), which is otherwise invisible to a host page:
+   * nothing else notifies it that `followParticipant` silently stopped
+   * applying.
+   */
+  readonly onFollowChange?: (followingPid: string | null) => void;
 }
 
 export interface CopresenceInstance {
+  /** This connection's own participant id — generated or given at `init()`, and never present in `onPresenceChange`'s roster (this SDK never renders its own cursor). */
+  readonly pid: string;
   connect(): void;
   disconnect(): void;
   status(): ConnectionStatus;
@@ -94,6 +117,15 @@ export function init(options: CopresenceOptions): CopresenceInstance {
   let pingTimer: ReturnType<typeof setInterval> | undefined;
   let staleSweepTimer: ReturnType<typeof setInterval> | undefined;
   let pointerCaptureActive = false;
+  // `patch` carries absolute (last-writer-wins) cursor/scroll values, not
+  // deltas, on a real, strictly-increasing server-assigned `seq` (the
+  // server's own tick counter — see TickScheduler). A reordered or
+  // duplicated network delivery could otherwise apply a stale patch AFTER
+  // a newer one, leaving this client frozen on wrong state until the next
+  // tick corrects it — or, if movement has already stopped, never. This
+  // mirrors the same seq-guard principle `SequenceGuard` already enforces
+  // server-side for inbound messages, applied here to outbound ones.
+  let lastPatchSeq = -Infinity;
 
   function currentViewport(): { docWidth: number; docHeight: number; dpr: number } {
     return readViewportMetadata(doc, win);
@@ -116,7 +148,9 @@ export function init(options: CopresenceOptions): CopresenceInstance {
   const scrollCapture = createScrollCapture({
     onCapture: (scroll) => {
       connection.send(buildScroll(wire, scroll.x, scroll.y));
+      const wasFollowing = scrollFollow.isFollowing();
       scrollFollow.notifyScrollEvent();
+      if (wasFollowing && !scrollFollow.isFollowing()) options.onFollowChange?.(null);
     },
     target: win,
     win,
@@ -146,21 +180,45 @@ export function init(options: CopresenceOptions): CopresenceInstance {
       case 'welcome':
       case 'snapshot':
         seedRoster(message.participants);
+        notifyPresenceChange();
         return;
       case 'join':
         upsertRemote(message.participant);
+        notifyPresenceChange();
         return;
       case 'leave':
         remotes.delete(message.pid);
         cursorLayer.remove(message.pid);
+        notifyPresenceChange();
         return;
       case 'patch':
+        if (message.seq <= lastPatchSeq) return; // stale or duplicate — a newer patch already applied
+        lastPatchSeq = message.seq;
         for (const patch of message.patches) applyPatch(patch);
+        notifyPresenceChange();
         return;
       case 'pong':
+        options.onLatency?.(Date.now() - message.pingTs);
+        return;
       case 'error':
-        return; // nothing to render for either — see transport/connection.ts for the heartbeat this answers
+        return; // nothing to render — see transport/connection.ts for the heartbeat `pong` answers
     }
+  }
+
+  function notifyPresenceChange(): void {
+    if (!options.onPresenceChange) return;
+    const roster: RosterParticipant[] = [];
+    for (const [remotePid, participant] of remotes) {
+      roster.push({
+        pid: remotePid,
+        color: participant.color,
+        lastSeenAt: participant.lastSeenAt,
+        ...(participant.cursorLatest
+          ? { cursor: { x: participant.cursorLatest.x, y: participant.cursorLatest.y } }
+          : {}),
+      });
+    }
+    options.onPresenceChange(roster);
   }
 
   function seedRoster(participants: readonly ParticipantSnapshot[]): void {
@@ -323,10 +381,17 @@ export function init(options: CopresenceOptions): CopresenceInstance {
   }
 
   return {
+    pid,
     connect,
     disconnect,
     status: () => connection.status(),
-    followParticipant: (targetPid: string) => scrollFollow.enable(targetPid),
-    stopFollowing: () => scrollFollow.disable(),
+    followParticipant: (targetPid: string) => {
+      scrollFollow.enable(targetPid);
+      options.onFollowChange?.(targetPid);
+    },
+    stopFollowing: () => {
+      scrollFollow.disable();
+      options.onFollowChange?.(null);
+    },
   };
 }

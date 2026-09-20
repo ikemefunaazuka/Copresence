@@ -1,3 +1,5 @@
+import { classify, encodeOutbound } from '@copresence/protocol';
+
 import { createApp } from './app.js';
 import { EnvValidationError, loadEnv } from './config/env.js';
 import type { ControllerDeps } from './controllers/types.js';
@@ -6,6 +8,9 @@ import { createLogger } from './lib/logger.js';
 import { createServer } from './server.js';
 import { AuditLog } from './services/AuditLog.js';
 import { BroadcastHub } from './services/BroadcastHub.js';
+import { ChaosMiddleware } from './services/ChaosMiddleware.js';
+import { ConvergenceTracker } from './services/ConvergenceTracker.js';
+import { MetricsCollector } from './services/MetricsCollector.js';
 import { Reaper } from './services/Reaper.js';
 import { SessionRegistry } from './services/SessionRegistry.js';
 import { TickScheduler } from './services/TickScheduler.js';
@@ -36,14 +41,43 @@ function main(): void {
   const clock = systemClock;
 
   const registry = new SessionRegistry(clock);
-  const hub = new BroadcastHub();
   const auditLog = new AuditLog();
-  const controllerDeps: ControllerDeps = { registry, hub, auditLog, clock };
+  const metrics = new MetricsCollector();
+  const convergenceTracker = new ConvergenceTracker();
 
-  const app = createApp({ corsOrigin: env.CORS_ORIGIN, logger, controllerDeps });
+  // Sits between BroadcastHub's decision to send and the raw socket write
+  // — every knob starts at zero (a pure passthrough) until the `/chaos`
+  // panel dials one up. `onDeliver` only ever fires for a message that
+  // genuinely left the wire, which is exactly what both outbound metrics
+  // and the convergence simulation need: a dropped message should affect
+  // neither.
+  const chaos = new ChaosMiddleware({
+    clock,
+    onDeliver: (pid, message, deliveredAt) => {
+      metrics.recordOutbound(Buffer.byteLength(encodeOutbound(message)));
+      metrics.recordLatencySample(deliveredAt - message.ts);
+      convergenceTracker.recordDelivery(message.sid, pid, message);
+    },
+    onDrop: (_pid, message) => {
+      metrics.recordDrop(classify(message.t));
+    },
+    onDuplicate: () => {
+      metrics.recordDuplicateSent();
+    },
+  });
+  const hub = new BroadcastHub({ chaos });
+  const controllerDeps: ControllerDeps = { registry, hub, auditLog, clock, metrics };
+
+  const app = createApp({ corsOrigin: env.CORS_ORIGIN, logger, controllerDeps, chaos, metrics, convergenceTracker });
   const server = createServer({ app, controllerDeps, logger });
 
-  const tickScheduler = new TickScheduler({ registry, hub, clock, tickRateHz: env.TICK_RATE_HZ });
+  const tickScheduler = new TickScheduler({
+    registry,
+    hub,
+    clock,
+    tickRateHz: env.TICK_RATE_HZ,
+    metrics,
+  });
   const reaper = new Reaper({ registry, hub, auditLog, clock, ttlMs: env.PARTICIPANT_TTL_MS });
 
   server.httpServer.listen(env.PORT, () => {

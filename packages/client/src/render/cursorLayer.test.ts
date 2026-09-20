@@ -77,6 +77,15 @@ describe('createCursorLayer', () => {
     expect(() => layer.remove('ghost')).not.toThrow();
   });
 
+  it('tags the element with the participant id, so an outside observer can select it directly', () => {
+    const layer = createCursorLayer(container, document);
+    layer.upsert('p1', 0, 0, '#000');
+
+    const wrapper = container.querySelector('[data-pid="p1"]');
+    expect(wrapper).not.toBeNull();
+    expect(wrapper).toBe(container.firstElementChild);
+  });
+
   it('tracks multiple participants independently', () => {
     const layer = createCursorLayer(container, document);
     layer.upsert('a', 0, 0, '#f00');

@@ -53,6 +53,7 @@ export function handleRealtimeMessage(
 ): void {
   const now = deps.clock.now();
   const result = decodeInbound(raw);
+  deps.metrics?.recordInbound(result.ok ? result.message.t : 'malformed', Buffer.byteLength(raw));
 
   if (!result.ok) {
     const code: ErrorCode = result.error.kind;
@@ -83,7 +84,16 @@ export function handleRealtimeMessage(
 
   // Duplicate or out-of-order at the connection level: expected, not an
   // error (docs/adr/0009) — silently dropped, logged for visibility only.
+  // `accept()` leaves `lastSeen()` unchanged on a rejection, so it still
+  // reflects the same "last accepted" value from before this call — an
+  // exact match against `msg.seq` means a duplicate; anything lower is a
+  // genuinely late, out-of-order arrival.
   if (!ctx.sequenceGuard.accept(msg.seq)) {
+    if (msg.seq === ctx.sequenceGuard.lastSeen()) {
+      deps.metrics?.recordDuplicateRejected();
+    } else {
+      deps.metrics?.recordOutOfOrderRejected();
+    }
     logger.debug(
       { sid: ctx.sid, pid: msg.pid, seq: msg.seq, type: msg.t },
       'dropped stale/duplicate seq',

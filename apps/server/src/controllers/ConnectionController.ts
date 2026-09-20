@@ -34,6 +34,12 @@ export function handleHello(ctx: ConnectionContext, msg: HelloMessage, deps: Con
   const seq = 0; // handshake-scoped; the tick scheduler owns the broadcast sequence proper
   deps.hub.sendTo(msg.pid, toWelcome(next, msg.pid, seq, deps.clock.now()));
 
+  // A repeat `hello` re-syncs full state via this `welcome` regardless of
+  // why it was sent (a reconnect and a window resize look identical here
+  // — both are "already known, re-announcing" from the server's side),
+  // so both count as a resync for observability purposes.
+  if (wasAlreadyPresent) deps.metrics?.recordResync();
+
   if (!wasAlreadyPresent) {
     // applyEvent's 'hello' case unconditionally leaves this participant
     // present in `next` (addParticipant then touchAndSetViewport, both

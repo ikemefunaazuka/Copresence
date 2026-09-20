@@ -5,6 +5,7 @@ import type { Clock } from '../lib/clock.js';
 import { SequenceGuard } from '../models/SequenceGuard.js';
 import type { AuditLog } from '../services/AuditLog.js';
 import type { BroadcastHub } from '../services/BroadcastHub.js';
+import type { MetricsCollector } from '../services/MetricsCollector.js';
 import type { SessionRegistry } from '../services/SessionRegistry.js';
 
 /**
@@ -51,4 +52,6 @@ export interface ControllerDeps {
   readonly hub: BroadcastHub;
   readonly auditLog: AuditLog;
   readonly clock: Clock;
+  /** Optional — omitted by most tests, which do not care about observability counters. */
+  readonly metrics?: MetricsCollector;
 }

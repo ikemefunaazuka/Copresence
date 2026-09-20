@@ -29,6 +29,8 @@
     "pretest:coverage": "npm run build:protocol",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build:protocol && playwright test",
+    "predemo": "npm run build:protocol && npm run build -w packages/client",
+    "demo": "node scripts/demo.mjs",
     "prebuild": "npm run build:protocol",
     "build": "npm run build --workspaces --if-present",
     "size": "size-limit",

@@ -30,6 +30,10 @@ export function createCursorLayer(
     if (existing) return existing;
 
     const wrapper = doc.createElement('div');
+    // Not read internally — this is purely so an outside observer (e.g. an
+    // E2E test piercing the closed shadow root by selector) can find one
+    // specific participant's cursor without depending on DOM order.
+    wrapper.setAttribute('data-pid', pid);
     wrapper.style.cssText = [
       'position:absolute',
       'top:0',

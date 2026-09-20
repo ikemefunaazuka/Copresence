@@ -7,6 +7,7 @@ import { applyEvent } from '../models/applyEvent.js';
 import { addParticipant } from '../models/Session.js';
 
 import { BroadcastHub } from './BroadcastHub.js';
+import { MetricsCollector } from './MetricsCollector.js';
 import { SessionRegistry } from './SessionRegistry.js';
 import { TickScheduler } from './TickScheduler.js';
 
@@ -130,6 +131,33 @@ describe('TickScheduler.tick', () => {
 
     const patch = JSON.parse(p1.sent[0]!) as PatchMessage;
     expect(patch.seq).toBe(2);
+  });
+
+  it('records one patch-emitted metric per non-empty broadcast, and none for a no-op tick', () => {
+    const { registry, hub, clock } = setUp();
+    const metrics = new MetricsCollector();
+    const scheduler = new TickScheduler({ registry, hub, clock, tickRateHz: 20, metrics });
+    registry.save(addParticipant(registry.getOrCreate(sid('s1')), pid('p1'), 0));
+    hub.register({ pid: pid('p1'), sid: sid('s1'), socket: fakeSocket().socket });
+
+    scheduler.tick(); // nothing dirty
+    expect(metrics.snapshot().patchesEmitted).toBe(0);
+
+    registry.save(
+      applyEvent(registry.get(sid('s1'))!, {
+        v: 1,
+        t: 'cursor',
+        sid: sid('s1'),
+        pid: pid('p1'),
+        seq: 1,
+        ts: 0,
+        x: 0.5,
+        y: 100,
+      }).state,
+    );
+    scheduler.tick();
+
+    expect(metrics.snapshot().patchesEmitted).toBe(1);
   });
 
   it('start/stop are idempotent and start does not fire synchronously', () => {

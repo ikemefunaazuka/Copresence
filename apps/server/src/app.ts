@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import express from 'express';
 import type { Express } from 'express';
 
@@ -9,11 +11,30 @@ import { createRateLimitMiddleware } from './middleware/rateLimit.js';
 import { createRequestLogging } from './middleware/requestLogging.js';
 import { createSecurityMiddleware } from './middleware/security.js';
 import { createHttpRoutes } from './routes/httpRoutes.js';
+import type { ChaosMiddleware } from './services/ChaosMiddleware.js';
+import type { ConvergenceTracker } from './services/ConvergenceTracker.js';
+import type { MetricsCollector } from './services/MetricsCollector.js';
+
+/**
+ * `packages/client/dist` relative to this module's own location — the
+ * same three levels up whether this runs as `src/app.ts` under `tsx` or
+ * as the compiled `dist/app.js`, since both sit exactly one directory
+ * inside `apps/server/`.
+ */
+const DEFAULT_CLIENT_DIST_DIR = fileURLToPath(
+  new URL('../../../packages/client/dist', import.meta.url),
+);
 
 export interface CreateAppOptions {
   readonly corsOrigin: string;
   readonly logger: Logger;
   readonly controllerDeps: ControllerDeps;
+  /** Directory the built client bundle (`copresence.js`) is served from at `/static`. Overridable for tests. */
+  readonly clientDistDir?: string;
+  /** Powers `/chaos` and its JSON API. Omitted, those routes report an empty/disabled config rather than existing with no effect. */
+  readonly chaos?: ChaosMiddleware;
+  readonly metrics?: MetricsCollector;
+  readonly convergenceTracker?: ConvergenceTracker;
 }
 
 /**
@@ -34,8 +55,15 @@ export function createApp(options: CreateAppOptions): Express {
   app.use(createCorsMiddleware(options.corsOrigin));
   app.use(createRateLimitMiddleware());
   app.use(express.json());
+  app.use('/static', express.static(options.clientDistDir ?? DEFAULT_CLIENT_DIST_DIR));
 
-  app.use(createHttpRoutes(options.controllerDeps));
+  app.use(
+    createHttpRoutes(options.controllerDeps, {
+      ...(options.chaos ? { chaos: options.chaos } : {}),
+      ...(options.metrics ? { metrics: options.metrics } : {}),
+      ...(options.convergenceTracker ? { convergenceTracker: options.convergenceTracker } : {}),
+    }),
+  );
 
   app.use(createErrorHandler(options.logger));
 

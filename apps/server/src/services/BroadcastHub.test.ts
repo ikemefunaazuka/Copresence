@@ -113,4 +113,36 @@ describe('BroadcastHub', () => {
 
     expect(hub.participantsOf(sid('s1'))).toEqual([]);
   });
+
+  it('with a chaos transport given, routes every send through it instead of the socket directly', () => {
+    const calls: { pid: string; message: unknown }[] = [];
+    const hub = new BroadcastHub({
+      chaos: {
+        send: (chaosPid, message, rawSend) => {
+          calls.push({ pid: chaosPid, message });
+          rawSend(); // this fake transport just forwards immediately
+        },
+      },
+    });
+    const { socket, sent } = fakeSocket();
+    hub.register({ pid: pid('p1'), sid: sid('s1'), socket });
+
+    const delivered = hub.sendTo(pid('p1'), pong());
+
+    expect(delivered).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.pid).toBe('p1');
+    expect(sent).toHaveLength(1); // the transport's rawSend() call actually reached the socket
+  });
+
+  it('a chaos transport that never calls rawSend() means nothing reaches the socket, though sendTo still reports it was attempted', () => {
+    const hub = new BroadcastHub({ chaos: { send: () => undefined } }); // simulates a drop
+    const { socket, sent } = fakeSocket();
+    hub.register({ pid: pid('p1'), sid: sid('s1'), socket });
+
+    const delivered = hub.sendTo(pid('p1'), pong());
+
+    expect(delivered).toBe(true); // the connection was open and reachable — chaos decided what happened after that
+    expect(sent).toHaveLength(0);
+  });
 });

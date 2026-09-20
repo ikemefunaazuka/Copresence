@@ -8,12 +8,29 @@ interface Connection {
   readonly socket: WebSocket;
 }
 
+export interface ChaosTransport {
+  send(pid: ParticipantId, message: OutboundMessage, rawSend: () => void): void;
+}
+
+export interface BroadcastHubOptions {
+  /**
+   * Optional — when present, every send is routed through it instead of
+   * going straight to the socket, so `ChaosMiddleware` can decide whether,
+   * when, and how many times a message actually leaves the wire. Omitted
+   * entirely by most tests, which want the real, unconditional send this
+   * class always did.
+   */
+  readonly chaos?: ChaosTransport;
+}
+
 /**
  * Reaches live connections and sends to them — nothing more. Registering
  * and unregistering connections, sending to one participant, broadcasting
  * to everyone in a session. Deliberately knows nothing about ticking or
  * about `Session`'s dirty-field state; that orchestration is
- * `TickScheduler`'s job, built on top of this one.
+ * `TickScheduler`'s job, built on top of this one — and, as of the chaos
+ * lab, deliberately knows nothing about *how* a send actually reaches the
+ * wire either, only that it was handed off to something that will decide.
  *
  * Reused for both kinds of send: the coalesced, lossy `patch` on a tick,
  * and an immediate, lossless `join`/`leave`/`welcome` the moment it
@@ -22,6 +39,11 @@ interface Connection {
 export class BroadcastHub {
   #connections = new Map<ParticipantId, Connection>();
   #bySession = new Map<SessionId, Set<ParticipantId>>();
+  #chaos: ChaosTransport | undefined;
+
+  constructor(options: BroadcastHubOptions = {}) {
+    this.#chaos = options.chaos;
+  }
 
   register(connection: Connection): void {
     this.#connections.set(connection.pid, connection);
@@ -58,7 +80,12 @@ export class BroadcastHub {
   sendTo(pid: ParticipantId, message: OutboundMessage): boolean {
     const connection = this.#connections.get(pid);
     if (!connection || connection.socket.readyState !== connection.socket.OPEN) return false;
-    connection.socket.send(encodeOutbound(message));
+    const rawSend = (): void => connection.socket.send(encodeOutbound(message));
+    if (this.#chaos) {
+      this.#chaos.send(pid, message, rawSend);
+    } else {
+      rawSend();
+    }
     return true;
   }
 

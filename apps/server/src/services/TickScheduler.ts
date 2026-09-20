@@ -3,6 +3,7 @@ import { clearDirty } from '../models/Session.js';
 import { toPatch } from '../views/presenters.js';
 
 import type { BroadcastHub } from './BroadcastHub.js';
+import type { MetricsCollector } from './MetricsCollector.js';
 import type { SessionRegistry } from './SessionRegistry.js';
 
 export interface TickSchedulerDeps {
@@ -10,6 +11,8 @@ export interface TickSchedulerDeps {
   readonly hub: BroadcastHub;
   readonly clock: Clock;
   readonly tickRateHz: number;
+  /** Optional — records one "patch emitted" per non-empty broadcast, the denominator of the coalescing ratio. */
+  readonly metrics?: MetricsCollector;
 }
 
 /**
@@ -31,12 +34,14 @@ export class TickScheduler {
   #intervalMs: number;
   #timer: NodeJS.Timeout | undefined;
   #seq = 0;
+  #metrics: MetricsCollector | undefined;
 
   constructor(deps: TickSchedulerDeps) {
     this.#registry = deps.registry;
     this.#hub = deps.hub;
     this.#clock = deps.clock;
     this.#intervalMs = 1000 / deps.tickRateHz;
+    this.#metrics = deps.metrics;
   }
 
   start(): void {
@@ -65,6 +70,7 @@ export class TickScheduler {
       const patch = toPatch(session, this.#seq, now);
       if (!patch) continue;
       this.#hub.broadcastToSession(session.sid, patch);
+      this.#metrics?.recordPatchEmitted();
       this.#registry.save(clearDirty(session));
     }
   }

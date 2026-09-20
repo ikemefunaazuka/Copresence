@@ -72,10 +72,25 @@ export default tseslint.config(
     // project to attach them to. They don't need type-aware rules — drop
     // to syntactic-only linting for this small set of files instead of
     // forcing them into a tsconfig they conceptually don't belong in.
-    files: ['*.config.{js,mjs,ts}', '**/build.mjs', 'e2e/**/*.ts'],
+    files: ['*.config.{js,mjs,ts}', '**/build.mjs', 'scripts/**/*.mjs', 'e2e/**/*.ts'],
     extends: [tseslint.configs.disableTypeChecked],
     rules: {
       'import-x/order': 'off',
+    },
+  },
+  {
+    // Plain Node scripts run directly (not bundled), so they need Node's
+    // own globals — everything else here runs inside a browser or a
+    // bundler and never touches these.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+      },
     },
   },
   prettierConfig,
