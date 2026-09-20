@@ -7,7 +7,6 @@
  * for this directory).
  */
 
-export * from './coordinates.js';
 export * from './SequenceGuard.js';
 export * from './PresenceState.js';
 export * from './Participant.js';

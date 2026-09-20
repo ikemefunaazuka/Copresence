@@ -5,11 +5,18 @@
  * sizes, zoom levels and `devicePixelRatio` place a cursor on the same
  * paragraph, not the same pixel offset.
  *
- * The caller (client-side capture/render code) is responsible for
- * reading real DOM values (its own scrollY, its own document width) and
- * passing them in; this module never assumes whose numbers they are, which
- * is exactly what lets the same function convert on the way in and on the
- * way back out.
+ * This used to live in the server's domain model, on the theory that
+ * coordinate math is domain logic. In practice the server never calls
+ * either function — it stores and relays `{x, y}` as opaque numbers, and
+ * the only real callers are capture (converting a raw mouse event before
+ * sending) and render (converting a received position back to screen
+ * coordinates). Moved here, to where it is actually consumed, rather
+ * than left unused in the server or duplicated.
+ *
+ * The caller is responsible for reading real DOM values (its own
+ * scrollY, its own document width) and passing them in; this module
+ * never assumes whose numbers they are, which is exactly what lets the
+ * same function convert on the way in and on the way back out.
  */
 
 export interface Viewport {

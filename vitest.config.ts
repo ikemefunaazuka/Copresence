@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     include: ['packages/*/src/**/*.test.ts', 'apps/server/src/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
+    // The default for everything except packages/client, whose tests
+    // touch real DOM APIs (Shadow DOM, requestAnimationFrame, WebSocket)
+    // and opt into `jsdom` individually via an `@vitest-environment`
+    // comment at the top of the file — the stable, version-portable way
+    // to do this, rather than the workspace/projects config surface.
     environment: 'node',
     coverage: {
       provider: 'v8',
