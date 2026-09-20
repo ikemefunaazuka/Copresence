@@ -34,5 +34,16 @@ export const RECONNECT_MAX_BACKOFF_MS = 10_000;
 /** Shared budget for sendBeacon / fetch(keepalive) audit flushes (Phase 6). */
 export const AUDIT_BEACON_BUDGET_BYTES = 64 * 1024;
 
+/**
+ * Hard ceiling on one inbound WebSocket frame, enforced at the transport
+ * level (`ws`'s `maxPayload`) so an oversized frame is rejected before it
+ * is ever fully buffered — not after parsing it, which would already have
+ * spent the memory this exists to protect (MILESTONE Phase 2 exit
+ * criteria: "oversized frame → rejected without OOM"). Generous for any
+ * legitimate message this protocol defines, all of which are a handful of
+ * short fields.
+ */
+export const MAX_INBOUND_MESSAGE_BYTES = 8 * 1024;
+
 /** Injected client bundle budget, gzipped — see .size-limit.json and docs/adr/0010. */
 export const CLIENT_BUNDLE_BUDGET_BYTES = 10 * 1024;

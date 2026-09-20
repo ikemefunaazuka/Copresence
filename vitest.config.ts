@@ -15,6 +15,9 @@ export default defineConfig({
         // Composition roots — thin by design, exercised by e2e/integration
         // tests rather than unit tests. See CONTRIBUTING.md.
         '**/src/index.ts',
+        // Test infrastructure, not production code — exercised heavily by
+        // every integration test that uses it, but not unit-tested itself.
+        '**/testing/**',
       ],
       thresholds: {
         lines: 90,

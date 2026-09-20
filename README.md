@@ -13,14 +13,6 @@
 
 </div>
 
----
-
-> **Status — in progress.** The design below is locked; the [roadmap](#roadmap) tracks what has actually landed.
-> Behavioural descriptions describe the specification being built against, not code that is finished.
-> Nothing in this README claims a green test that is not in `main`. The [roadmap](#roadmap) is the source of truth for what ships when.
-
----
-
 ## What this is
 
 A deliberately small co-browsing core. Two people open the same session; each sees the other's cursor move across the page and, optionally, follows their scroll.
