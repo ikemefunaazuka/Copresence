@@ -2,10 +2,48 @@
 import { PROTOCOL_VERSION } from '@copresence/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { Beacon } from './beacon/beacon.js';
+import type { OutboxStorage } from './outbox/storage.js';
 import type { WebSocketLike } from './transport/connection.js';
 
 import { init } from './index.js';
 import type { RosterParticipant } from './index.js';
+
+/** Never-implemented in `jsdom` — same reasoning as `outbox/storage.test.ts` never touching real IndexedDB. An in-memory stand-in is enough: these tests exercise the SDK's own wiring, not the outbox's persistence logic (already covered by `outbox/outbox.test.ts`). */
+function fakeOutboxStorage(): OutboxStorage {
+  const entries = new Map<string, { eventId: string; payload: string; createdAt: number }>();
+  return {
+    put: (entry) => {
+      entries.set(entry.eventId, entry);
+      return Promise.resolve();
+    },
+    delete: (eventId) => {
+      entries.delete(eventId);
+      return Promise.resolve();
+    },
+    getAll: () => Promise.resolve(Array.from(entries.values())),
+  };
+}
+
+/** Never touches real `fetch`/`sendBeacon` — acknowledges instantly, matching the common case where the live socket is expected to carry audit traffic instead. Calls are recorded so tests can assert on the closed-socket fallback path. */
+function fakeBeacon(): Beacon & { confirmableCalls: string[] } {
+  const confirmableCalls: string[] = [];
+  return {
+    confirmableCalls,
+    sendBestEffort: () => true,
+    sendConfirmable: (payload) => {
+      confirmableCalls.push(payload);
+      return Promise.resolve(true);
+    },
+  };
+}
+
+/** Settles the microtask chain inside the SDK's fire-and-forget audit `emit()` calls (`outbox.add()` → socket-or-beacon send) — the SDK's other tests are deliberately synchronous and never observe this tail, but the audit-lifecycle wiring genuinely needs it to run. */
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 const CLOSED = 3;
 const OPEN_STATE = 1;
@@ -70,6 +108,7 @@ function setUp(
   const sockets: FakeSocket[] = [];
   const container = document.createElement('div');
   document.body.appendChild(container);
+  const beacon = fakeBeacon();
 
   const instance = init({
     wsUrl: 'ws://test/ws',
@@ -77,6 +116,8 @@ function setUp(
     pid: 'me',
     doc: document,
     win: window,
+    outboxStorage: fakeOutboxStorage(),
+    beacon,
     createSocket: () => {
       const socket = new FakeSocket();
       sockets.push(socket);
@@ -87,7 +128,7 @@ function setUp(
     ...(overrides.onFollowChange ? { onFollowChange: overrides.onFollowChange } : {}),
   });
 
-  return { instance, sockets, latestSocket: () => sockets[sockets.length - 1]!, container };
+  return { instance, sockets, latestSocket: () => sockets[sockets.length - 1]!, container, beacon };
 }
 
 describe('init (the whole SDK, wired)', () => {
@@ -415,5 +456,62 @@ describe('init (the whole SDK, wired)', () => {
     });
 
     expect(() => instance.disconnect()).not.toThrow();
+  });
+
+  describe('audit lifecycle wiring', () => {
+    it('connect() eventually emits session.start via the beacon fallback, since the socket is not open yet at that instant', async () => {
+      const { instance, beacon } = setUp();
+
+      instance.connect();
+      await flushMicrotasks();
+
+      expect(beacon.confirmableCalls).toHaveLength(1);
+      const sent = JSON.parse(beacon.confirmableCalls[0]!) as { t: string };
+      expect(sent.t).toBe('session.start');
+      instance.disconnect();
+    });
+
+    it('an audit.ack for an already-beacon-delivered event is handled without throwing', async () => {
+      const { instance, latestSocket, beacon } = setUp();
+
+      instance.connect();
+      await flushMicrotasks();
+      const started = JSON.parse(beacon.confirmableCalls[0]!) as { t: string; eventId: string };
+      expect(started.t).toBe('session.start');
+
+      latestSocket().simulateOpen();
+      expect(() =>
+        latestSocket().simulateMessage({
+          v: PROTOCOL_VERSION,
+          t: 'audit.ack',
+          sid: 'session-1',
+          seq: 0,
+          ts: Date.now(),
+          eventId: started.eventId,
+        }),
+      ).not.toThrow();
+      instance.disconnect();
+    });
+
+    it('going hidden while connected emits visibility.change then session.end over the live socket', async () => {
+      const { instance, latestSocket } = setUp();
+      instance.connect();
+      latestSocket().simulateOpen();
+      await flushMicrotasks();
+      const before = latestSocket().sentMessages().length;
+
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flushMicrotasks();
+
+      const sentTypes = latestSocket()
+        .sentMessages()
+        .slice(before)
+        .map((m) => (m as { t: string }).t);
+      expect(sentTypes).toEqual(['visibility.change', 'session.end']);
+
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      instance.disconnect();
+    });
   });
 });

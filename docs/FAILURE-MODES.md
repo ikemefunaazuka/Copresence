@@ -141,6 +141,38 @@ Reproduction steps that reference the chaos panel assume the server is running (
 
 ---
 
+## Audit & session-lifecycle delivery
+
+### Browser process killed outright (no lifecycle event fires at all)
+
+- **Symptom, if unhandled:** a session's audit trail has a `session.start` with no matching `session.end`, forever — nothing client-side ever ran to say otherwise.
+- **Mechanism:** the server never waits to be told. `Reaper`'s heartbeat-TTL sweep writes an inferred `session.end` (`source: 'inferred'`) for any participant nobody has heard from in a while, independent of anything the client did or didn't manage to send.
+- **Lives in:** `apps/server/src/services/Reaper.ts`.
+- **Reproduce:** `audit.integration.test.ts -t "killing the process outright"`.
+
+### The socket closes with no `bye` and no beacon (offline at the moment it mattered)
+
+- **Symptom, if unhandled:** identical to the above if the _only_ closure mechanism were the client's own reporting — a session left open because the one path that could have closed it never got the chance to run.
+- **Mechanism:** the server's own WebSocket `close` handler writes a `session.end` (`source: 'socket'`) whenever a connection ends without a preceding `bye`, independent of the client's beacon path ever firing. This is the one closure signal that needs no client cooperation beyond the transport layer tearing down normally.
+- **Lives in:** `apps/server/src/controllers/ConnectionController.ts` (`handleDisconnect`).
+- **Reproduce:** `audit.integration.test.ts -t "offline at flush time"` and `-t "drop 100% of beacon requests"`.
+
+### bfcache-duplicated beacon (the same event reported twice)
+
+- **Symptom, if unhandled:** a `session.end` beacon fires on hide, the page is restored from the back/forward cache rather than torn down, and the same still-unconfirmed outbox entry fires again — without dedup, two records for one real close.
+- **Mechanism:** `AuditLog.record` is idempotent on `eventId`; a retry of the exact same report is folded into the existing record's `reports` list rather than stored again. The client side of this is the outbox itself (see ADR 0012): an entry is cleared only on real acknowledgement, never on a bare `sendBeacon` return value, so a frozen-then-resumed page finds it still pending and legitimately resends it.
+- **Lives in:** `apps/server/src/services/AuditLog.ts`, `packages/client/src/outbox/`.
+- **Reproduce:** `AuditLog.test.ts`'s idempotency case; `audit.integration.test.ts -t "bfcache-duplicated beacon"`; live, `e2e/inspector.spec.ts` shows it end to end in the inspector's audit table.
+
+### Three independent paths reporting the same close as three separate records
+
+- **Symptom, if unhandled:** `client` (a beacon), `socket` (the server's own close handler) and `inferred` (the reconciliation sweep) each generate their own `eventId` when they independently notice the same session ending — a literal `eventId`-only idempotency check does nothing to stop the same real close from being recorded three times, once per path that happened to notice it. This was a real gap in the three paths as first built independently, not a hypothetical.
+- **Mechanism:** beyond `eventId` idempotency, `AuditLog.record` recognises a `session.end` that closes the _same still-open instance_ — the one most recently opened by a `session.start` with no `session.end` after it yet — and folds a later report into the existing record instead of creating a new one, regardless of which path reported it. See ADR 0013.
+- **Lives in:** `apps/server/src/services/AuditLog.ts` (`#openSessionEnd`).
+- **Reproduce:** `AuditLog.test.ts`'s `describe('session.end convergence across sources')` block; `audit.integration.test.ts -t "invariant across every session-closure path"`.
+
+---
+
 ## Observability of all of the above
 
 Nothing above is a claim in this document alone — `/chaos` lets a reviewer dial in any combination of these conditions live, `/metrics` (Prometheus) and `/api/metrics` (JSON) expose the resulting counters (dropped-by-class, duplicates sent/rejected, out-of-order rejected, resyncs triggered, coalescing ratio, delivery latency percentiles), and `/api/sessions/:sid/convergence` shows, per participant, whether their simulated view of the session has actually converged — the same mechanism the three tests above assert on. See `apps/server/src/testing/chaos.integration.test.ts` for the automated versions of the coalescing-ratio and convergence claims, and `apps/server/src/services/ChaosMiddleware.ts` / `MetricsCollector.ts` / `ConvergenceTracker.ts` for how each is actually computed.

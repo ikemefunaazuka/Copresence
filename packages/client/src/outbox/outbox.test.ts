@@ -116,4 +116,34 @@ describe('createOutbox', () => {
     expect(remaining.some((e) => e.eventId === 'evt-0')).toBe(false);
     expect(remaining.some((e) => e.eventId === `evt-${OUTBOX_MAX_ENTRIES + 4}`)).toBe(true);
   });
+
+  it('Phase 6 exit criterion — offline at flush time: the entry survives in storage and lands on the next page load', async () => {
+    // One shared backing store standing in for the real IndexedDB database,
+    // which — unlike the outbox wrapper around it — genuinely does persist
+    // across a page load. Two separate `createOutbox()` instances against
+    // it is the honest way to model "this page died and a new one opened":
+    // nothing in-memory survives, only what was written to storage does.
+    const storage = fakeStorage();
+    const firstPageLoad = createOutbox({ storage });
+    await firstPageLoad.add('evt-1', '{"t":"session.end"}');
+
+    let sendAttempted = false;
+    await firstPageLoad.flushPending(() => {
+      sendAttempted = true;
+      return Promise.resolve(false); // offline — the send never reaches the server
+    });
+
+    expect(sendAttempted).toBe(true);
+    expect(storage.size()).toBe(1); // not confirmed, so it survives
+
+    const nextPageLoad = createOutbox({ storage });
+    const delivered: string[] = [];
+    await nextPageLoad.flushPending((payload) => {
+      delivered.push(payload);
+      return Promise.resolve(true); // back online
+    });
+
+    expect(delivered).toEqual(['{"t":"session.end"}']);
+    expect(storage.size()).toBe(0);
+  });
 });

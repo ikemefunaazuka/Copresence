@@ -1,4 +1,9 @@
-import { decodeInbound, isAuditMessage, PROTOCOL_VERSION, SessionIdSchema } from '@copresence/protocol';
+import {
+  decodeInbound,
+  isAuditMessage,
+  PROTOCOL_VERSION,
+  SessionIdSchema,
+} from '@copresence/protocol';
 import type { AuditAckMessage, AuditMessage, SessionId } from '@copresence/protocol';
 import type { Request, Response } from 'express';
 

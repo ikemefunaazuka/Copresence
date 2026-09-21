@@ -47,7 +47,9 @@ function setUp(): { deps: ControllerDeps; ctx: ConnectionContext; sent: string[]
   return { deps, ctx, sent };
 }
 
-function visibilityChange(overrides: Partial<VisibilityChangeMessage> = {}): VisibilityChangeMessage {
+function visibilityChange(
+  overrides: Partial<VisibilityChangeMessage> = {},
+): VisibilityChangeMessage {
   return {
     v: PROTOCOL_VERSION,
     t: 'visibility.change',

@@ -1,10 +1,16 @@
 import { PARTICIPANT_TTL_MS } from '@copresence/protocol';
 import type { OutboundMessage, ParticipantSnapshot } from '@copresence/protocol';
 
+import { createBeacon } from './beacon/beacon.js';
+import type { Beacon } from './beacon/beacon.js';
 import { toViewportSpace } from './capture/coordinates.js';
 import { createPointerCapture } from './capture/pointerCapture.js';
 import { createScrollCapture } from './capture/scrollCapture.js';
 import { readScrollOffset, readViewportMetadata } from './capture/viewport.js';
+import { createLifecycle } from './lifecycle/lifecycle.js';
+import { createOutbox } from './outbox/outbox.js';
+import { createIndexedDbStorage } from './outbox/storage.js';
+import type { OutboxStorage } from './outbox/storage.js';
 import { createCursorLayer } from './render/cursorLayer.js';
 import { interpolatedPosition } from './render/interpolation.js';
 import { createScrollFollow } from './render/scrollFollow.js';
@@ -21,6 +27,15 @@ import {
   createWireContext,
 } from './wire.js';
 import type { WireContext } from './wire.js';
+
+/** `ws(s)://host/ws?sid=...` → `http(s)://host/audit/beacon` — derived from `wsUrl` (rather than `win.location`) so the audit endpoint always tracks whichever origin this SDK was told to connect to, not necessarily the host page's own origin. */
+function auditBeaconUrl(wsUrl: string): string {
+  const url = new URL(wsUrl);
+  url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
+  url.pathname = '/audit/beacon';
+  url.search = '';
+  return url.toString();
+}
 
 /**
  * @copresence/client — the injectable browser SDK. Everything above this
@@ -70,6 +85,10 @@ export interface CopresenceOptions {
    * applying.
    */
   readonly onFollowChange?: (followingPid: string | null) => void;
+  /** Injectable so tests never touch real IndexedDB (`jsdom` does not implement it). Defaults to `createIndexedDbStorage()`. */
+  readonly outboxStorage?: OutboxStorage;
+  /** Injectable so tests never touch a real network. Defaults to `createBeacon` against `/audit/beacon` on `wsUrl`'s origin. */
+  readonly beacon?: Beacon;
 }
 
 export interface CopresenceInstance {
@@ -138,6 +157,20 @@ export function init(options: CopresenceOptions): CopresenceInstance {
     ...(options.createSocket ? { createSocket: options.createSocket } : {}),
   });
 
+  const outbox = createOutbox({
+    storage: options.outboxStorage ?? createIndexedDbStorage(),
+  });
+  const beacon = options.beacon ?? createBeacon({ url: auditBeaconUrl(options.wsUrl) });
+  const lifecycle = createLifecycle({
+    doc,
+    win,
+    wire,
+    outbox,
+    beacon,
+    sendOverSocket: (message) => connection.send(message),
+    isSocketOpen: () => connection.status() === 'open',
+  });
+
   const pointerCapture = createPointerCapture({
     documentWidth: () => currentViewport().docWidth,
     scrollY: () => readScrollOffset(win).y,
@@ -199,6 +232,9 @@ export function init(options: CopresenceOptions): CopresenceInstance {
         return;
       case 'pong':
         options.onLatency?.(Date.now() - message.pingTs);
+        return;
+      case 'audit.ack':
+        lifecycle.handleAck(message.eventId);
         return;
       case 'error':
         return; // nothing to render — see transport/connection.ts for the heartbeat `pong` answers
@@ -363,6 +399,7 @@ export function init(options: CopresenceOptions): CopresenceInstance {
     scrollCapture.start();
     doc.addEventListener('visibilitychange', handleVisibilityChange);
     renderHandle ??= win.requestAnimationFrame(renderFrame);
+    lifecycle.start();
   }
 
   function disconnect(): void {
@@ -378,6 +415,7 @@ export function init(options: CopresenceOptions): CopresenceInstance {
     }
     stopPing();
     stopStaleSweep();
+    lifecycle.stop();
   }
 
   return {

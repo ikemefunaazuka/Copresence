@@ -37,8 +37,7 @@ export interface BeaconOptions {
 }
 
 export function createBeacon(options: BeaconOptions): Beacon {
-  const sendBeaconFn =
-    options.sendBeaconFn ?? ((url, data) => navigator.sendBeacon(url, data));
+  const sendBeaconFn = options.sendBeaconFn ?? ((url, data) => navigator.sendBeacon(url, data));
   const fetchFn = options.fetchFn ?? ((...args) => fetch(...args));
 
   return {

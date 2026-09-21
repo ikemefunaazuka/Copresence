@@ -24,7 +24,10 @@ describe('AuditLog', () => {
     const log = new AuditLog();
     expect(log.record(record())).toBe(true);
     expect(log.has('evt-1')).toBe(true);
-    expect(log.get('evt-1')).toEqual({ ...record(), reports: [{ source: 'client', recordedAt: 1_000 }] });
+    expect(log.get('evt-1')).toEqual({
+      ...record(),
+      reports: [{ source: 'client', recordedAt: 1_000 }],
+    });
   });
 
   it('is idempotent on eventId — a duplicate is a true no-op that still appends to `reports`', () => {
@@ -79,7 +82,9 @@ describe('AuditLog', () => {
   describe('session.end convergence across sources', () => {
     it('three independent paths closing the same instance collapse into one record, tagged with every path that saw it', () => {
       const log = new AuditLog();
-      log.record(record({ eventId: 'start-1', kind: 'session.start', source: 'client', recordedAt: 0 }));
+      log.record(
+        record({ eventId: 'start-1', kind: 'session.start', source: 'client', recordedAt: 0 }),
+      );
 
       expect(
         log.record({

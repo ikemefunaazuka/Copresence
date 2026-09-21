@@ -72,7 +72,8 @@ export function createIndexedDbStorage(factory: IDBFactory = indexedDB): OutboxS
         const tx = db.transaction(STORE_NAME, 'readonly');
         const request = tx.objectStore(STORE_NAME).getAll();
         request.onsuccess = () => resolve(request.result as OutboxEntry[]);
-        request.onerror = () => reject(toError(request.error, 'failed to read from the outbox database'));
+        request.onerror = () =>
+          reject(toError(request.error, 'failed to read from the outbox database'));
       });
     },
   };

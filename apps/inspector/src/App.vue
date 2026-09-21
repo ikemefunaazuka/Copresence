@@ -41,6 +41,24 @@ interface ConvergenceSnapshot {
   converged: boolean;
 }
 
+type AuditSource = 'client' | 'socket' | 'inferred';
+
+interface AuditReport {
+  source: AuditSource;
+  recordedAt: number;
+}
+
+interface AuditRecord {
+  eventId: string;
+  sid: string;
+  pid: string;
+  kind: string;
+  source: AuditSource;
+  recordedAt: number;
+  detail?: Record<string, unknown>;
+  reports: AuditReport[];
+}
+
 const POLL_INTERVAL_MS = 500;
 
 const sid = ref(new URLSearchParams(location.search).get('sid') ?? '');
@@ -48,7 +66,17 @@ const metrics = ref<MetricsSnapshot | null>(null);
 const previousMetrics = ref<{ snapshot: MetricsSnapshot; at: number } | null>(null);
 const chaos = ref<ChaosState | null>(null);
 const convergence = ref<ConvergenceSnapshot | null>(null);
+const audit = ref<AuditRecord[] | null>(null);
 const connectionError = ref(false);
+
+function formatTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString();
+}
+
+/** The set of distinct paths that reported this event — `reports` can hold more entries than this when the same path retried (e.g. a bfcache-duplicated beacon), which is why this is separate from `reports.length`. */
+function distinctSources(record: AuditRecord): AuditSource[] {
+  return [...new Set(record.reports.map((report) => report.source))];
+}
 
 const rates = computed(() => {
   if (!metrics.value || !previousMetrics.value) return null;
@@ -84,12 +112,17 @@ async function poll(): Promise<void> {
     connectionError.value = false;
 
     if (sid.value.trim()) {
-      const convergenceRes = await fetch(
-        `/api/sessions/${encodeURIComponent(sid.value.trim())}/convergence`,
-      );
+      const encodedSid = encodeURIComponent(sid.value.trim());
+      const [convergenceRes, auditRes] = await Promise.all([
+        fetch(`/api/sessions/${encodedSid}/convergence`),
+        fetch(`/api/sessions/${encodedSid}/audit`),
+      ]);
       convergence.value = (await convergenceRes.json()) as ConvergenceSnapshot;
+      const auditBody = (await auditRes.json()) as { records: AuditRecord[] };
+      audit.value = auditBody.records;
     } else {
       convergence.value = null;
+      audit.value = null;
     }
   } catch {
     connectionError.value = true;
@@ -251,6 +284,60 @@ onUnmounted(() => {
         <p v-else class="sub">No participants tracked for this session yet.</p>
       </template>
     </section>
+
+    <section class="card">
+      <h2>Audit trail</h2>
+      <p class="sub">
+        Three independent paths report a session's lifecycle — <code>client</code> (a beacon or the
+        live socket), <code>socket</code> (the server noticing its own connection close),
+        <code>inferred</code> (the reconciliation sweep). This is the demo moment: for one
+        <code>session.end</code>, which path arrived first, and whether more than one reported it.
+      </p>
+
+      <p v-if="!sid.trim()" class="sub">Enter a session id above to see its audit trail.</p>
+      <template v-else-if="audit">
+        <table v-if="audit.length > 0">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Event</th>
+              <th>Participant</th>
+              <th>First reported by</th>
+              <th>All paths</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="record in [...audit].reverse()" :key="record.eventId">
+              <td class="sub-value">{{ formatTime(record.recordedAt) }}</td>
+              <td>{{ record.kind }}</td>
+              <td class="mono">{{ record.pid }}</td>
+              <td>
+                <span class="source-badge" :class="`source-${record.source}`">{{
+                  record.source
+                }}</span>
+              </td>
+              <td>
+                <span
+                  v-for="path in distinctSources(record)"
+                  :key="path"
+                  class="source-badge"
+                  :class="`source-${path}`"
+                  >{{ path }}</span
+                >
+                <span
+                  v-if="record.reports.length > distinctSources(record).length"
+                  class="sub-value"
+                >
+                  ({{ record.reports.length }} reports total — a duplicate was reported and
+                  rejected)
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="sub">No audit events recorded for this session yet.</p>
+      </template>
+    </section>
   </main>
 </template>
 
@@ -370,5 +457,37 @@ td {
 td.hash {
   text-align: right;
   font-family: ui-monospace, monospace;
+}
+th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.6;
+  padding: 0.3rem 0.5rem 0.3rem 0;
+}
+td {
+  padding-right: 0.5rem;
+}
+.mono {
+  font-family: ui-monospace, monospace;
+}
+.source-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 0.3rem;
+  color: #fff;
+}
+.source-badge.source-client {
+  background: #2e7d32;
+}
+.source-badge.source-socket {
+  background: #1565c0;
+}
+.source-badge.source-inferred {
+  background: #6a1b9a;
 }
 </style>

@@ -55,7 +55,10 @@ export class AuditLog {
 
     const existingById = this.#records.get(entry.eventId);
     if (existingById) {
-      this.#records.set(entry.eventId, { ...existingById, reports: [...existingById.reports, report] });
+      this.#records.set(entry.eventId, {
+        ...existingById,
+        reports: [...existingById.reports, report],
+      });
       return false;
     }
 
